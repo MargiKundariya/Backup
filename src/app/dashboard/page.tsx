@@ -11,6 +11,8 @@ import { DeviceTemplate } from '@/types';
 import { useTemplateStore } from '@/lib/templateStore';
 import { Modal } from '@/components/ui/Modal';
 import { TemplateUploader } from '@/components/editor/devices/TemplateUploader';
+import { TemplateManager } from '@/components/admin/TemplateManager';
+import { TemplateEditor } from '@/components/admin/TemplateEditor';
 import { Button } from '@/components/ui/Button';
 
 const RECENT_KEY = 'skinmockup-recent-devices';
@@ -119,7 +121,7 @@ export default function DashboardPage() {
 
   const handleDeviceEdit = useCallback((device: DeviceTemplate) => {
     setEditingDevice(device);
-    setIsUploaderOpen(true);
+    // setIsUploaderOpen(true); // We will use a separate modal for editing details
   }, []);
 
   const handleDeleteDevice = async (id: string) => {
@@ -295,73 +297,45 @@ export default function DashboardPage() {
               title="My Device Library"
               maxWidth="max-w-4xl"
             >
-              <div className="p-6 space-y-6">
-                <div className="relative">
-                  <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" />
-                  <input
-                    type="text"
-                    placeholder="Search my devices..."
-                    value={librarySearch}
-                    onChange={(e) => setLibrarySearch(e.target.value)}
-                    className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-border rounded-2xl text-sm outline-none focus:ring-2 focus:ring-accent/10 transition-all"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
-                  {filteredLibrary.map(device => (
-                    <div key={device.id} className="p-4 bg-white border border-border rounded-2xl flex items-center justify-between group hover:shadow-md transition-all">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-16 bg-slate-50 rounded-lg flex items-center justify-center overflow-hidden border border-border">
-                          <img src={device.templatePath} className="max-w-full max-h-full object-contain" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-text-primary">{device.name}</p>
-                          <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest">{device.brand} · {device.category}</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleDeviceEdit(device)}
-                          className="p-2.5 text-text-muted hover:text-accent hover:bg-accent/10 rounded-xl transition-all"
-                          title="Edit"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteDevice(device.id)}
-                          className="p-2.5 text-text-muted hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                          title="Delete"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  {filteredLibrary.length === 0 && (
-                    <div className="col-span-2 py-12 text-center text-text-muted">
-                      <Package size={32} className="mx-auto mb-3 opacity-20" />
-                      <p className="text-sm font-medium">No devices found in your library.</p>
-                    </div>
-                  )}
-                </div>
+              <div className="p-0">
+                <TemplateManager 
+                  onlyOwned={true}
+                  onEditDetails={(device) => {
+                    setEditingDevice(device);
+                    setIsLibraryOpen(false);
+                  }} 
+                />
               </div>
             </Modal>
 
             <Modal
+              isOpen={!!editingDevice}
+              onClose={() => setEditingDevice(null)}
+              title="Engineer Technical Details"
+              maxWidth="max-w-4xl"
+            >
+              {editingDevice && (
+                <TemplateEditor
+                  device={editingDevice}
+                  onSave={() => {
+                    setEditingDevice(null);
+                    loadCustomDevices();
+                  }}
+                  onCancel={() => setEditingDevice(null)}
+                />
+              )}
+            </Modal>
+
+            <Modal
               isOpen={isUploaderOpen}
-              onClose={() => {
-                setIsUploaderOpen(false);
-                setEditingDevice(null);
-              }}
+              onClose={() => setIsUploaderOpen(false)}
               title="Engineer Technical Details"
               maxWidth="max-w-4xl"
             >
               <TemplateUploader
-                device={editingDevice || undefined}
                 onTemplateCreated={(d) => {
                   loadCustomDevices();
                   setIsUploaderOpen(false);
-                  setEditingDevice(null);
                   setIsLibraryOpen(false);
 
                   // Same logic as Sidebar: Select and go to Studio
@@ -369,13 +343,9 @@ export default function DashboardPage() {
                   useEditorStore.getState().setActivePreviewDevice(d.id);
                   router.push('/');
                 }}
-                onCancel={() => {
-                  setIsUploaderOpen(false);
-                  setEditingDevice(null);
-                }}
+                onCancel={() => setIsUploaderOpen(false)}
               />
             </Modal>
-
           </div>
         </div>
       </main>

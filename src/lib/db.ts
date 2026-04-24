@@ -341,7 +341,11 @@ export async function getGlobalStats() {
       (SELECT count(*) FROM public.designs)::INTEGER as total_designs,
       (SELECT count(*) FROM public.devices)::INTEGER as total_devices,
       (SELECT count(*) FROM public.devices WHERE is_approved = FALSE)::INTEGER as pending_approvals,
-      (SELECT count(*) FROM public.licenses WHERE status = 'active')::INTEGER as active_licenses
+      (
+        SELECT count(*) FROM public.users u
+        LEFT JOIN public.licenses l ON l.owner_user_id = u.id
+        WHERE COALESCE(l.expires_at, (u.created_at + INTERVAL '1 year')) > NOW()
+      )::INTEGER as active_licenses
   `);
 }
 
@@ -477,14 +481,35 @@ export async function getAllDBDevices(userId?: string, isAdmin = false): Promise
   }
 
   // Regular users see approved devices OR their own OR system devices
-  return query<DBDevice>(
-    `SELECT * FROM public.devices 
-     WHERE is_approved = TRUE 
-     OR owner_user_id IS NULL
-     ${userId ? 'OR owner_user_id = $1' : ''} 
-     ORDER BY created_at DESC`,
-    userId ? [userId] : []
-  );
+  // Logic: Hide approved/system devices if a private override exists for the same user
+  const sql = userId 
+    ? `SELECT * FROM public.devices d
+       WHERE (
+         -- Show global/system devices only if no private override exists for this user
+         (is_approved = TRUE OR owner_user_id IS NULL)
+         AND NOT EXISTS (
+           SELECT 1 FROM public.devices d2 
+           WHERE d2.owner_user_id = $1 
+           AND d2.brand = d.brand 
+           AND d2.model = d.model 
+           AND d2.is_approved = FALSE
+         )
+       )
+       OR (
+         -- Always show the user's own private devices
+         owner_user_id = $1 AND is_approved = FALSE
+       )
+       ORDER BY created_at DESC`
+    : `SELECT * FROM public.devices 
+       WHERE is_approved = TRUE 
+       OR owner_user_id IS NULL
+       ORDER BY created_at DESC`;
+
+  return query<DBDevice>(sql, userId ? [userId] : []);
+}
+
+export async function getDBDevice(id: string): Promise<DBDevice | null> {
+  return queryMaybe<DBDevice>('SELECT * FROM public.devices WHERE id = $1', [id]);
 }
 
 export async function createDBDevice(device: Omit<DBDevice, 'created_at' | 'is_approved'>, isApproved?: boolean): Promise<DBDevice> {
@@ -557,5 +582,32 @@ export async function deleteDBDevice(id: string, ownerId?: string): Promise<void
     `DELETE FROM public.devices 
      WHERE id = $1 AND ($2::uuid IS NULL OR owner_user_id = $2)`, 
     [id, ownerId || null]
+  );
+}
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+export interface ExpiringLicenseInfo {
+  license_id: string;
+  user_id: string;
+  user_name: string;
+  user_phone: string | null;
+  expires_at: string;
+}
+
+export async function getLicensesExpiringInRange(startDays: number, endDays: number): Promise<ExpiringLicenseInfo[]> {
+  return query<ExpiringLicenseInfo>(
+    `SELECT 
+      l.id as license_id,
+      u.id as user_id,
+      u.full_name as user_name,
+      u.phone_number as user_phone,
+      l.expires_at
+    FROM public.licenses l
+    JOIN public.users u ON l.owner_user_id = u.id
+    WHERE l.status = 'active'
+    AND l.expires_at >= CURRENT_DATE + INTERVAL '${startDays} days'
+    AND l.expires_at <= CURRENT_DATE + INTERVAL '${endDays} days'
+    AND u.phone_number IS NOT NULL`
   );
 }

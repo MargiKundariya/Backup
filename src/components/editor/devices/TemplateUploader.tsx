@@ -68,12 +68,16 @@ export function TemplateUploader({ onTemplateCreated, onCancel, device }: Templa
     setErrorMessage(null);
     setLoading(true);
     try {
-      const displayName = `${brand} ${model}`;
+      // Find existing brand to match case
+      const existingBrand = dynamicBrands.find(b => b.toLowerCase() === brand.toLowerCase());
+      const finalBrand = existingBrand || brand;
+
+      const displayName = model; // Do not prepend brand, keep it separate.
       if (device) {
         const updated: DeviceTemplate = {
           ...device,
           name: displayName,
-          brand,
+          brand: finalBrand,
           model,
           category,
           dimensions,
@@ -85,7 +89,7 @@ export function TemplateUploader({ onTemplateCreated, onCancel, device }: Templa
         const newDevice: DeviceTemplate = {
           id: uuidv4(),
           name: displayName,
-          brand,
+          brand: finalBrand,
           model,
           category,
           templatePath: preview,
@@ -111,9 +115,25 @@ export function TemplateUploader({ onTemplateCreated, onCancel, device }: Templa
     { id: 'laptop' as const, label: 'LAPTOP', icon: Monitor },
   ];
 
+  const { customDevices } = useTemplateStore();
+
+  const dynamicBrands = useMemo(() => {
+    const brands = new Set(Object.keys(BRAND_MODELS));
+    customDevices.forEach(d => {
+      if (d.brand) brands.add(d.brand);
+    });
+    return Array.from(brands);
+  }, [customDevices]);
+
   const modelsForBrand = useMemo(() => {
-    return BRAND_MODELS[brand] || [];
-  }, [brand]);
+    const models = new Set(BRAND_MODELS[brand] || []);
+    customDevices.forEach(d => {
+      if (d.brand.toLowerCase() === brand.toLowerCase() && d.model) {
+        models.add(d.model);
+      }
+    });
+    return Array.from(models);
+  }, [brand, customDevices]);
 
   return (
     <div className="p-0 space-y-0 max-h-[85vh] overflow-y-auto custom-scrollbar bg-white">
@@ -137,7 +157,7 @@ export function TemplateUploader({ onTemplateCreated, onCancel, device }: Templa
                     className="w-full px-6 py-4 bg-slate-50 border border-border rounded-[20px] text-sm font-bold focus:ring-4 focus:ring-accent/10 focus:border-accent transition-all outline-none"
                   />
                   <datalist id="brand-list">
-                    {Object.keys(BRAND_MODELS).map(b => (
+                    {dynamicBrands.map(b => (
                       <option key={b} value={b} />
                     ))}
                   </datalist>

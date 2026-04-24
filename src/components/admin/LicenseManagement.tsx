@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { UserWithLicense } from '@/lib/db';
 import {
   Calendar, CheckCircle, AlertCircle, User, Mail, ShieldCheck,
-  Key, Clock, X, Loader2, Plus, ArrowRight, Shield
+  Key, Clock, X, Loader2, ArrowRight, Shield
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
@@ -76,6 +76,7 @@ export function LicenseManagement() {
       setSubmitting(false);
     }
   }
+
 
   const isExpired = (expiry: string) => {
     const today = new Date();

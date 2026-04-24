@@ -1,21 +1,28 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { DeviceTemplate } from '@/types';
 import { useTemplateStore } from '@/lib/templateStore';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import {
   CheckCircle, Globe, Lock, Trash2, Edit2, Loader2, Eye,
-  Smartphone, Search, Filter, MoreVertical, AlertTriangle, Layout, XCircle
+  Smartphone, Search, Filter, MoreVertical, AlertTriangle, Layout, XCircle, ShieldCheck, 
+  RefreshCw, History, Check, X
 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { v5 as uuidv5 } from 'uuid';
 
 interface TemplateManagerProps {
   onEditDetails: (device: DeviceTemplate) => void;
+  onlyOwned?: boolean;
 }
 
-export function TemplateManager({ onEditDetails }: TemplateManagerProps) {
-  const { customDevices, loadCustomDevices, removeCustomDevice, approveDevice, loading } = useTemplateStore();
+const NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+
+export function TemplateManager({ onEditDetails, onlyOwned = false }: TemplateManagerProps) {
+  const { customDevices, loadCustomDevices, removeCustomDevice, updateCustomDevice, approveDevice, loading } = useTemplateStore();
+  const { user } = useAuth();
   const [previewingDevice, setPreviewingDevice] = useState<DeviceTemplate | null>(null);
   const [approvingDeviceId, setApprovingDeviceId] = useState<{id: string, target: boolean} | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -24,11 +31,47 @@ export function TemplateManager({ onEditDetails }: TemplateManagerProps) {
     loadCustomDevices();
   }, [loadCustomDevices]);
 
-  const filteredDevices = customDevices.filter(d =>
-    d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    d.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    d.category.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredDevices = customDevices.filter(d => {
+    const matchesSearch = d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      d.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      d.category.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    if (onlyOwned) {
+      // Show only devices owned by user. 
+      // This includes the Global version (if they own it) and the "Original" backup.
+      return matchesSearch && d.owner_user_id === user?.id;
+    }
+    return matchesSearch;
+  });
+
+  // Grouping logic for versions (Only for regular users to resolve conflicts)
+  const displayDevices = useMemo(() => {
+    if (user?.role === 'super_admin') return filteredDevices;
+
+    const processed = new Set<string>();
+    const results: (DeviceTemplate & { hasBackup?: DeviceTemplate })[] = [];
+
+    // First pass: Find main devices (Global or just not backups)
+    filteredDevices.forEach(d => {
+      const backupId = uuidv5(d.id, NAMESPACE);
+      const backup = filteredDevices.find(bd => bd.id === backupId);
+      
+      if (!d.id.includes('-old') && !d.name.includes('(Original)')) {
+        results.push({ ...d, hasBackup: backup });
+        processed.add(d.id);
+        if (backup) processed.add(backup.id);
+      }
+    });
+
+    // Second pass: Add remaining devices (that weren't identified as main devices)
+    filteredDevices.forEach(d => {
+      if (!processed.has(d.id)) {
+        results.push(d);
+      }
+    });
+
+    return results;
+  }, [filteredDevices, user?.role]);
 
   const handleApprove = async () => {
     if (approvingDeviceId) {
@@ -55,7 +98,9 @@ export function TemplateManager({ onEditDetails }: TemplateManagerProps) {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 px-2">
         <div className="space-y-1">
           <p className="text-sm text-text-muted font-medium max-w-md leading-relaxed">
-            Manage global availability and professional user submissions with advanced control.
+            {user?.role === 'super_admin' 
+              ? 'Manage global availability and professional user submissions with advanced control.' 
+              : 'Manage your personal device catalog and track approval status for global submissions.'}
           </p>
         </div>
 
@@ -93,8 +138,10 @@ export function TemplateManager({ onEditDetails }: TemplateManagerProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-border/30">
-              {filteredDevices.map((device) => {
+              {displayDevices.map((device) => {
                 const isGlobal = device.is_approved;
+                const hasBackup = (device as any).hasBackup;
+
                 return (
                   <tr
                     key={device.id}
@@ -121,7 +168,19 @@ export function TemplateManager({ onEditDetails }: TemplateManagerProps) {
                     </td>
                     <td className="px-6 py-6">
                       <div className="space-y-1">
-                        <p className="text-base font-bold text-text-primary group-hover:text-accent transition-colors leading-tight">{device.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-base font-bold text-text-primary group-hover:text-accent transition-colors leading-tight">
+                            {device.name.toLowerCase().startsWith(device.brand.toLowerCase()) 
+                              ? device.name.substring(device.brand.length).trim() 
+                              : device.name}
+                          </p>
+                          {hasBackup && (
+                            <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[8px] font-black rounded-full uppercase tracking-tighter">Updated</span>
+                          )}
+                          {(device.name.includes('(Original)') || device.name.includes('(My Version)')) && (
+                            <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[8px] font-black rounded-full uppercase tracking-tighter">Original</span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] font-bold text-text-muted uppercase tracking-[0.15em]">{device.brand}</span>
                           <span className="w-1 h-1 rounded-full bg-border" />
@@ -140,20 +199,56 @@ export function TemplateManager({ onEditDetails }: TemplateManagerProps) {
                       </div>
                     </td>
                     <td className="px-6 py-6">
-                      {isGlobal ? (
-                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 text-[10px] font-black rounded-2xl border border-green-100 uppercase tracking-[0.1em] shadow-sm">
-                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                          <Globe size={14} /> GLOBAL
-                        </div>
-                      ) : (
-                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 text-[10px] font-black rounded-2xl border border-slate-200 uppercase tracking-[0.1em] shadow-sm">
-                          <Lock size={14} /> PRIVATE
-                        </div>
-                      )}
+                      <div className="space-y-3">
+                        {isGlobal ? (
+                          <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 text-[10px] font-black rounded-2xl border border-green-100 uppercase tracking-[0.1em] shadow-sm">
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                            <Globe size={14} /> GLOBAL
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 text-[10px] font-black rounded-2xl border border-slate-200 uppercase tracking-[0.1em] shadow-sm">
+                            <Lock size={14} /> PRIVATE
+                          </div>
+                        )}
+                        
+                        {hasBackup && user?.role !== 'super_admin' && (
+                          <div className="p-3 bg-amber-50/50 border border-amber-200/50 rounded-2xl space-y-2">
+                            <div className="flex items-center gap-2 text-amber-700">
+                              <History size={12} />
+                              <span className="text-[9px] font-bold uppercase tracking-tighter">Newer version available</span>
+                            </div>
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={() => {
+                                  if (window.confirm('This will keep the Admin\'s improved version and delete your original backup. Proceed?')) {
+                                    removeCustomDevice(hasBackup.id);
+                                  }
+                                }}
+                                className="flex-1 py-1.5 bg-white border border-amber-200 text-amber-700 text-[8px] font-bold rounded-lg hover:bg-amber-100 transition-all flex items-center justify-center gap-1"
+                              >
+                                <Check size={10} /> Adopt Admin Version
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  if (window.confirm('Keep your original version? This will hide the Admin\'s version from your view.')) {
+                                    updateCustomDevice({
+                                      ...hasBackup,
+                                      name: `${hasBackup.name.replace(' (Original)', '')} (My Version)`
+                                    });
+                                  }
+                                }}
+                                className="flex-1 py-1.5 bg-white border border-slate-200 text-slate-600 text-[8px] font-bold rounded-lg hover:bg-slate-50 transition-all flex items-center justify-center gap-1"
+                              >
+                                <Check size={10} /> Stick with Original
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="pr-10 py-6 text-right">
                       <div className="flex items-center justify-end gap-3">
-                        {!isGlobal && (
+                        {user?.role === 'super_admin' && !isGlobal && (
                           <Button
                             variant="primary"
                             size="sm"
@@ -164,24 +259,28 @@ export function TemplateManager({ onEditDetails }: TemplateManagerProps) {
                             Make Global
                           </Button>
                         )}
-                        <button
-                          onClick={() => onEditDetails(device)}
-                          className="p-2 text-text-muted hover:text-accent hover:bg-accent/5 rounded-xl transition-all"
-                          title="Edit Technical Details"
-                        >
-                          <Edit2 size={18} />
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (window.confirm('Are you sure you want to PERMANENTLY delete this template? This cannot be undone.')) {
-                              removeCustomDevice(device.id);
-                            }
-                          }}
-                          className="p-2 text-text-muted hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                          title="Remove from System"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                        {(user?.role === 'super_admin' || device.owner_user_id === user?.id) && (
+                          <>
+                            <button
+                              onClick={() => onEditDetails(device)}
+                              className="p-2 text-text-muted hover:text-accent hover:bg-accent/5 rounded-xl transition-all"
+                              title="Edit Technical Details"
+                            >
+                              <Edit2 size={18} />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (window.confirm('Are you sure you want to PERMANENTLY delete this template? This cannot be undone.')) {
+                                  removeCustomDevice(device.id);
+                                }
+                              }}
+                              className="p-2 text-text-muted hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                              title="Remove from System"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
