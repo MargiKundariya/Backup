@@ -1,0 +1,75 @@
+####################################################################
+# docker-compose.prod.yml — Production Supabase stack
+#
+# Differences from development:
+#   - No Studio exposed (port 3001 removed)
+#   - Resource limits on all services
+#   - Health checks with restart policies
+#   - No local port exposure except Kong (behind Caddy reverse proxy)
+#   - SSL terminated by Caddy (see Caddyfile)
+#
+# Usage:
+#   cd infra
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+####################################################################
+
+version: '3.8'
+
+services:
+  # ── Kong (API Gateway) ───────────────────────────────────────────────────────
+  kong:
+    ports:
+      # Only expose on localhost — Caddy proxies 443 → 127.0.0.1:8000
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  # ── GoTrue (Auth) ─────────────────────────────────────────────────────────────
+  auth:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  # ── REST (PostgREST) ──────────────────────────────────────────────────────────
+  rest:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  # ── Realtime ─────────────────────────────────────────────────────────────────
+  realtime:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  # ── Storage ──────────────────────────────────────────────────────────────────
+  storage:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  # ── Database ─────────────────────────────────────────────────────────────────
+  db:
+    restart: unless-stopped
+    # Do NOT expose port 5432 in production — access only via internal Docker network
+    ports: []
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  # ── Disable Studio in production ─────────────────────────────────────────────
+  studio:
+    profiles:
+      - dev   # Only starts in dev profile: docker compose --profile dev up

@@ -1,0 +1,56 @@
+# Kong Rate Limiting Plugin Configuration
+#
+# Apply this via Kong Admin API after the Supabase stack is running:
+#   curl -X POST http://localhost:8001/plugins -d @infra/kong/rate-limiting.yml
+#
+# Or via deck sync:
+#   deck sync --state infra/kong/rate-limiting.yml
+#
+# Limits (per IP unless authenticated, then per consumer):
+#   Anon:     30 requests/minute
+#   Auth:    300 requests/minute
+#   Export:  100 requests/hour  (applied to /api/export and /api/credits/deduct)
+
+_format_version: "3.0"
+_transform: true
+
+plugins:
+  # ── Global rate limit (anonymous) ──────────────────────────────────────────
+  - name: rate-limiting
+    config:
+      minute: 30
+      limit_by: ip
+      policy: local
+      hide_client_headers: false
+      error_message: "Rate limit exceeded. Please wait before retrying."
+
+services:
+  # ── Credits / Export service (stricter per-hour limit) ─────────────────────
+  - name: skin-mockup-app
+    url: http://host.docker.internal:3000
+    routes:
+      - name: export-route
+        paths:
+          - /api/credits/deduct
+          - /api/export
+        methods:
+          - POST
+        plugins:
+          - name: rate-limiting
+            config:
+              hour: 100
+              limit_by: consumer
+              policy: local
+              hide_client_headers: false
+              error_message: "Export rate limit exceeded. You can export up to 100 times per hour."
+
+      - name: general-api
+        paths:
+          - /api
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 300
+              limit_by: consumer
+              policy: local
+              hide_client_headers: false

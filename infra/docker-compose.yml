@@ -1,0 +1,101 @@
+###############################################################################
+# SkinMockup — Simplified Stack (PostgreSQL only)
+#
+# Start:   docker compose up -d
+# DB:      localhost:5432
+# Studio:  http://localhost:3001  (optional — db management UI)
+#
+# All data is persisted in ./volumes/ — back it up before rm -rf.
+###############################################################################
+
+name: skinmockup-supabase
+
+x-restart: &restart
+  restart: unless-stopped
+
+x-healthcheck-defaults: &hc-defaults
+  interval: 10s
+  timeout: 5s
+  retries: 5
+  start_period: 20s
+
+services:
+
+  # ── PostgreSQL ────────────────────────────────────────────────────────────
+  db:
+    <<: *restart
+    image: supabase/postgres:15.1.1.78
+    container_name: supabase-db
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "postgres"]
+      <<: *hc-defaults
+    environment:
+      POSTGRES_HOST: /var/run/postgresql
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXP: 3600
+    command:
+      - postgres
+      - -c
+      - config_file=/etc/postgresql/postgresql.conf
+      - -c
+      - log_min_messages=fatal
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./volumes/db/data:/var/lib/postgresql/data
+      - ./volumes/db/logs:/var/log/postgresql
+      - ./volumes/db/init:/docker-entrypoint-initdb.d
+    networks:
+      - supabase-net
+
+  # ── Supabase Studio (optional — visual DB browser) ────────────────────────
+  studio:
+    <<: *restart
+    image: supabase/studio:20240618-6efb133
+    container_name: supabase-studio
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      STUDIO_PG_META_URL: http://meta:8080
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DEFAULT_ORGANIZATION_NAME: SkinMockup
+      DEFAULT_PROJECT_NAME: skinmockup
+      SUPABASE_URL: http://localhost:8000
+      SUPABASE_PUBLIC_URL: http://localhost:8000
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
+      AUTH_JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "3001:3000"
+    networks:
+      - supabase-net
+
+  # ── postgres-meta (required by Studio) ───────────────────────────────────
+  meta:
+    <<: *restart
+    image: supabase/postgres-meta:v0.83.2
+    container_name: supabase-meta
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: db
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: postgres
+      PG_META_DB_USER: postgres
+      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD}
+    networks:
+      - supabase-net
+
+###############################################################################
+# Networks
+###############################################################################
+networks:
+  supabase-net:
+    driver: bridge
