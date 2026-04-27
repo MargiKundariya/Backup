@@ -220,7 +220,7 @@ export function AdminInsights() {
         title={getListTitle(activeListId)}
         maxWidth="max-w-3xl"
       >
-        <div className="p-6 max-h-[60vh] overflow-y-auto">
+        <div className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
           {activeUsers.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
               <Users size={32} className="text-text-muted opacity-30 mb-4" />

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { DeviceTemplate, SkinZone } from '@/types';
+import { clearCache } from './templateProcessor';
 
 interface TemplateStoreState {
   customDevices: DeviceTemplate[];
@@ -89,6 +90,7 @@ export const useTemplateStore = create<TemplateStoreState>((set, get) => ({
         body: JSON.stringify({ action: 'update', device }),
       });
       if (res.ok) {
+        clearCache(device.id);
         await get().loadCustomDevices();
       }
     } catch (err) {
@@ -104,6 +106,7 @@ export const useTemplateStore = create<TemplateStoreState>((set, get) => ({
         body: JSON.stringify({ action: 'delete', id }),
       });
       if (res.ok) {
+        clearCache(id);
         await get().loadCustomDevices();
       }
     } catch (err) {
@@ -123,6 +126,7 @@ export const useTemplateStore = create<TemplateStoreState>((set, get) => ({
         }),
       });
       if (res.ok) {
+        clearCache(deviceId);
         await get().loadCustomDevices();
       }
     } catch (err) {

@@ -1,4 +1,11 @@
+const imageCache = new Map<string, HTMLImageElement>();
+
 export function loadImage(src: string): Promise<HTMLImageElement> {
+  if (imageCache.has(src)) {
+    const cached = imageCache.get(src)!;
+    if (cached.complete) return Promise.resolve(cached);
+  }
+
   return new Promise((resolve, reject) => {
     if (!src) {
       reject(new Error('loadImage called with empty/undefined src'));
@@ -6,11 +13,15 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
     }
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
+    img.onload = () => {
+      imageCache.set(src, img);
+      resolve(img);
+    };
     img.onerror = () => reject(new Error(`Failed to load image: ${src.slice(0, 80)}`));
     img.src = src;
   });
 }
+
 
 export function imageToCanvas(
   img: HTMLImageElement

@@ -71,7 +71,7 @@ export function resolveFilename(pattern: string, ctx: FilenameContext): string {
   const total = ctx.total ?? 1;
   const index = ctx.index ?? 1;
 
-  const resolved = pattern
+  let resolved = pattern
     .replace(/\{brand\}/g,       ctx.brand)
     .replace(/\{model\}/g,       ctx.model)
     .replace(/\{model-slug\}/g,  slugify(ctx.model))
@@ -81,6 +81,12 @@ export function resolveFilename(pattern: string, ctx: FilenameContext): string {
     .replace(/\{ext\}/g,         ext)
     .replace(/\{date\}/g,        todayISO())
     .replace(/\{index\}/g,       padIndex(index, total));
+
+  // If this is a batch export and the user didn't include {index} in their pattern,
+  // we append it automatically to prevent file name collisions in the ZIP.
+  if (total > 1 && !pattern.includes('{index}')) {
+    resolved += `-${padIndex(index, total)}`;
+  }
 
   // Sanitise the resolved name (no slashes in the filename portion — only in path components)
   const parts = resolved.split('/');

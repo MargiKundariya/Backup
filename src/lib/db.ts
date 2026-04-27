@@ -185,6 +185,10 @@ export async function deleteUser(id: string): Promise<void> {
   await query('DELETE FROM public.users WHERE id = $1', [id]);
 }
 
+export async function resetUserPassword(userId: string, passwordHash: string): Promise<void> {
+  await query('UPDATE public.users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [passwordHash, userId]);
+}
+
 // ── Sessions ──────────────────────────────────────────────────────────────────
 
 export async function createSession(userId: string, jti: string, expiresAt: Date): Promise<void> {
@@ -318,14 +322,15 @@ export async function deleteDesign(id: string, userId: string): Promise<void> {
 
 export async function getDesignStats(userId: string) {
   return query<{ count: number, period: string }>(`
-    SELECT count(*)::INTEGER, 'day' as period FROM public.designs WHERE user_id = $1 AND created_at > NOW() - INTERVAL '1 day'
+    SELECT count(*)::INTEGER, 'day' as period FROM public.designs WHERE user_id = $1 AND created_at >= date_trunc('day', NOW())
     UNION ALL
-    SELECT count(*)::INTEGER, 'week' as period FROM public.designs WHERE user_id = $1 AND created_at > NOW() - INTERVAL '1 week'
+    SELECT count(*)::INTEGER, 'week' as period FROM public.designs WHERE user_id = $1 AND created_at >= date_trunc('week', NOW())
     UNION ALL
-    SELECT count(*)::INTEGER, 'month' as period FROM public.designs WHERE user_id = $1 AND created_at > NOW() - INTERVAL '1 month'
+    SELECT count(*)::INTEGER, 'month' as period FROM public.designs WHERE user_id = $1 AND created_at >= date_trunc('month', NOW())
     UNION ALL
-    SELECT count(*)::INTEGER, 'year' as period FROM public.designs WHERE user_id = $1 AND created_at > NOW() - INTERVAL '1 year'
+    SELECT count(*)::INTEGER, 'year' as period FROM public.designs WHERE user_id = $1 AND created_at >= date_trunc('year', NOW())
   `, [userId]);
+
 }
 
 export async function getGlobalStats() {

@@ -28,6 +28,7 @@ export default function AdminPage() {
   const [isUploaderOpen, setIsUploaderOpen] = useState(false);
   const [editingDeviceDetails, setEditingDeviceDetails] = useState<DeviceTemplate | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const handleLogout = async () => {
     try {
@@ -51,17 +52,26 @@ export default function AdminPage() {
       {/* Mobile Menu Toggle */}
       <button
         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-        className="lg:hidden absolute top-4 left-4 z-50 p-2 bg-white rounded-xl shadow-lg border border-border"
+        className="lg:hidden fixed top-4 left-4 z-50 w-12 h-12 flex items-center justify-center bg-white rounded-2xl shadow-xl border border-border text-text-primary active:scale-95 transition-all"
       >
         {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
 
-      {/* Premium Sidebar (User Sidebar UI/UX) */}
+
+      {/* Mobile Backdrop */}
+      {isMobileMenuOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 z-30 bg-text-primary/20 backdrop-blur-sm animate-in fade-in duration-300"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Premium Sidebar */}
       <aside className={`
         fixed lg:relative inset-y-0 left-0 z-40
-        w-[280px] flex-shrink-0 glass-sidebar flex flex-col h-full
-        transition-transform duration-300 ease-in-out
+        transition-all duration-500 ease-in-out glass-sidebar flex flex-col h-full
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        ${isSidebarOpen ? 'w-[280px] min-w-[280px]' : 'w-0 min-w-0 border-none'}
       `}>
         {/* Sidebar Header */}
         <div className="p-6">
@@ -69,8 +79,8 @@ export default function AdminPage() {
             <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center shadow-lg shadow-accent/30">
               <ShieldCheck size={22} className="text-white" />
             </div>
-            <div>
-              <h1 className="text-sm font-bold text-text-primary uppercase tracking-tight">Super Admin</h1>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-sm font-bold text-text-primary uppercase tracking-tight truncate">Super Admin</h1>
               <p className="text-[10px] text-accent font-bold uppercase tracking-widest leading-none">Console v2.0</p>
             </div>
           </div>

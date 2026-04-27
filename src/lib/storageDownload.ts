@@ -43,24 +43,36 @@ export function clearStorageCache(): void {
  * Downloads zone images from local storage URLs and returns data URLs.
  *
  * @param zoneStoragePaths - map of zoneId → public URL (/uploads/...)
+ * @param bypassCache - if true, skips LRU cache and adds cache-busting timestamp
  * @returns map of zoneId → data URL (missing keys omitted on error)
  */
 export async function downloadZoneImages(
   zoneStoragePaths: Record<string, string>,
+  bypassCache = false
 ): Promise<Record<string, string>> {
   const result: Record<string, string> = {};
 
   await Promise.all(
     Object.entries(zoneStoragePaths).map(async ([zoneId, storagePath]) => {
-      // Check LRU cache first
-      const cached = lruGet(storagePath);
-      if (cached) {
-        result[zoneId] = cached;
-        return;
+      // Check LRU cache first (skip if bypassing)
+      if (!bypassCache) {
+        const cached = lruGet(storagePath);
+        if (cached) {
+          result[zoneId] = cached;
+          return;
+        }
       }
 
+      // Bypass browser cache if requested
+      const fetchUrl = bypassCache 
+        ? `${storagePath}${storagePath.includes('?') ? '&' : '?'}_t=${Date.now()}`
+        : storagePath;
+
       // Fetch and convert to data URL so the canvas can use it
-      const response = await fetch(storagePath);
+      const response = await fetch(fetchUrl, {
+        cache: bypassCache ? 'no-store' : 'default'
+      });
+
       if (!response.ok) {
         console.warn('[Storage] fetch failed for', storagePath, response.status);
         return;

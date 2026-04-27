@@ -57,8 +57,12 @@ export function MockupCanvas() {
   // Tracks transform changes to trigger re-renders
   const zoneDesignsVersion = useEditorStore((s) =>
     Object.entries(s.zoneDesigns)
-      .map(([id, d]) => `${id}:${d.transform.x},${d.transform.y},${d.transform.scaleX},${d.transform.scaleY}`)
-      .join('|')
+      .map(([id, d]) => {
+        const t = d.transform;
+        const textVers = d.textLayers.map(tl => `${tl.id}:${tl.transform.x},${tl.transform.y}`).join(',');
+        return `${id}:${t.x},${t.y},${t.scaleX},${t.scaleY}|text:${textVers}`;
+      })
+      .join('||')
   );
 
   // Only changes when the image URL itself changes (not on every transform update)
@@ -190,13 +194,28 @@ export function MockupCanvas() {
     setPan({ x: 0, y: 0 });
   }, [processed]);
 
+  const isRendering = useRef(false);
+  const renderRequested = useRef(false);
+
   // ── Main render ──────────────────────────────────────────────────────────────
   const render = useCallback(async () => {
+    if (isRendering.current) {
+      renderRequested.current = true;
+      return;
+    }
+
     const canvas = canvasRef.current;
     if (!canvas || !processed) return;
 
+    isRendering.current = true;
+    renderRequested.current = false;
+
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      isRendering.current = false;
+      return;
+    }
+
 
     const { zoneDesigns, activeZoneId } = useEditorStore.getState();
 
@@ -247,10 +266,10 @@ export function MockupCanvas() {
 
     try {
       const renderDesigns = compareMode ? {} : zoneDesigns;
-      const composited    = await compositeDevice(processed, renderDesigns);
-
       const dScale =
         Math.min(width / processed.width, height / processed.height) * 0.85 * zoom;
+
+      const composited = await compositeDevice(processed, renderDesigns, { scale: dScale });
 
       const dx = (width  - processed.width  * dScale) / 2 + pan.x;
       const dy = (height - processed.height * dScale) / 2 + pan.y;
@@ -266,9 +285,10 @@ export function MockupCanvas() {
         composited,
         0, 0, composited.width, composited.height,
         dx, dy,
-        processed.width  * dScale,
-        processed.height * dScale,
+        composited.width,
+        composited.height
       );
+
       
       // Grid overlay
       if (showGrid) {
@@ -324,8 +344,8 @@ export function MockupCanvas() {
         const zoneOriginY = zone?.bounds.y ?? 0;
 
         if (iw > 0 && ih > 0) {
-          const sx = dx + (zoneOriginX + t.x) * dScale;
-          const sy = dy + (zoneOriginY + t.y) * dScale;
+          const sx = dx + t.x * dScale;
+          const sy = dy + t.y * dScale;
           const sw =       iw * t.scaleX       * dScale;
           const sh =       ih * t.scaleY       * dScale;
 
@@ -360,7 +380,7 @@ export function MockupCanvas() {
             const tt = text.transform;
             ctx.font = `${text.fontSize}px ${text.fontFamily}`;
             const metrics = ctx.measureText(text.content);
-            const tsx = dx + (tt.x + 50) * dScale;
+            const tsx = dx + tt.x * dScale;
             const tsy = dy +  tt.y       * dScale;
             const tsw =       metrics.width * tt.scaleX * dScale;
             const tsh =       text.fontSize * tt.scaleY * dScale;
@@ -375,7 +395,13 @@ export function MockupCanvas() {
       }
     } catch (err) {
       console.error('Render error:', err);
+    } finally {
+      isRendering.current = false;
+      if (renderRequested.current) {
+        requestAnimationFrame(render);
+      }
     }
+
   }, [processed, backgroundScene, customBackgroundImage, canvasSize, zoom, pan, cropPreview, showGrid, compareMode, canvasDevice]);
 
   // Re-render whenever transforms change
@@ -430,7 +456,7 @@ export function MockupCanvas() {
       ctx.font   = `${text.fontSize}px ${text.fontFamily}`;
       const tsw  = ctx.measureText(text.content).width * tt.scaleX * dr.scale;
       const tsh  = text.fontSize * tt.scaleY * dr.scale;
-      const tsx  = dr.x + (tt.x + 50) * dr.scale;
+      const tsx  = dr.x + tt.x * dr.scale;
       const tsy  = dr.y +  tt.y       * dr.scale;
       if (mx >= tsx && mx <= tsx + tsw && my >= tsy && my <= tsy + tsh) return text.id;
     }
@@ -454,8 +480,8 @@ export function MockupCanvas() {
     const zoneOriginX = zone?.bounds.x ?? 0;
     const zoneOriginY = zone?.bounds.y ?? 0;
     const dr  = deviceRect.current;
-    const sx  = dr.x + (zoneOriginX + t.x) * dr.scale;
-    const sy  = dr.y + (zoneOriginY + t.y) * dr.scale;
+    const sx  = dr.x + t.x * dr.scale;
+    const sy  = dr.y + t.y * dr.scale;
     const sw  =         iw * t.scaleX       * dr.scale;
     const sh  =         ih * t.scaleY       * dr.scale;
     const hit = 12;
@@ -492,8 +518,8 @@ const hitTestDesign = useCallback((clientX: number, clientY: number): boolean =>
 
   const dr = deviceRect.current;
 
-  const sx = dr.x + (zone.bounds.x + t.x) * dr.scale;
-  const sy = dr.y + (zone.bounds.y + t.y) * dr.scale;
+  const sx = dr.x + t.x * dr.scale;
+  const sy = dr.y + t.y * dr.scale;
   const sw = iw * t.scaleX * dr.scale;
   const sh = ih * t.scaleY * dr.scale;
 

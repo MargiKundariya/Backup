@@ -4,29 +4,13 @@ import { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useEditorStore } from '@/lib/store';
 import { backgroundScenes } from '@/data/backgrounds';
-import { Upload, Trash2 } from 'lucide-react';
-
-const SIZE_OPTIONS: {
-  value: 'autofit' | 'cover' | 'contain' | 'custom';
-  label: string;
-  description: string;
-}[] = [
-  { value: 'autofit', label: 'Auto Fit', description: 'Scales image to fill the canvas automatically' },
-  { value: 'cover',   label: 'Cover',    description: 'Crops and fills the entire canvas' },
-  { value: 'contain', label: 'Contain',  description: 'Fits the whole image inside the canvas' },
-  { value: 'custom',  label: 'Custom',   description: 'Manually set the scale with the slider' },
-];
+import { Upload, Trash2, Image as ImageIcon } from 'lucide-react';
 
 export function BackgroundPanel() {
   const backgroundScene          = useEditorStore((s) => s.backgroundScene);
   const setBackground            = useEditorStore((s) => s.setBackground);
   const customBackgroundImage    = useEditorStore((s) => s.customBackgroundImage);
   const setCustomBackgroundImage = useEditorStore((s) => s.setCustomBackgroundImage);
-
-  const backgroundSize  = useEditorStore((s) => s.backgroundSize);
-  const setBackgroundSize = useEditorStore((s) => s.setBackgroundSize);
-  const backgroundScale = useEditorStore((s) => s.backgroundScale);
-  const setBackgroundScale = useEditorStore((s) => s.setBackgroundScale);
 
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
@@ -35,7 +19,6 @@ export function BackgroundPanel() {
       const reader = new FileReader();
       reader.onload = () => {
         setCustomBackgroundImage(reader.result as string);
-        // Store resets backgroundSize to 'autofit' automatically on upload
       };
       reader.readAsDataURL(file);
     },
@@ -49,136 +32,99 @@ export function BackgroundPanel() {
   });
 
   return (
-    <div className="space-y-3">
-
+    <div className="space-y-6">
       {/* ── Background presets ────────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-1.5">
-        {backgroundScenes.map((scene) => (
-          <button
-            key={scene.id}
-            onClick={() => setBackground(scene.id)}
-            className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all duration-200 ${
-              backgroundScene === scene.id && !customBackgroundImage
-                ? 'border-accent shadow-[0_0_0_2px_var(--accent-muted)]'
-                : 'border-border hover:border-text-muted hover:shadow-sm'
-            }`}
-          >
-            <div
-              className="w-full h-full"
-              style={{
-                background:
-                  scene.type === 'gradient'
-                    ? scene.value
-                    : scene.type === 'solid' && scene.value !== 'transparent'
-                    ? scene.value
-                    : undefined,
-              }}
-            />
-            <span className="absolute bottom-0 left-0 right-0 text-center text-[9px] bg-black/50 text-white py-0.5">
-              {scene.name}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* ── Upload dropzone ───────────────────────────────────────────── */}
-      <div
-        {...getRootProps()}
-        className={`border-2 border-dashed rounded-xl p-3 text-center cursor-pointer transition-colors duration-150 ${
-          isDragActive
-            ? 'border-accent bg-accent/5'
-            : 'border-border hover:border-text-muted'
-        }`}
-      >
-        <input {...getInputProps()} />
-        {customBackgroundImage ? (
-          <img
-            src={customBackgroundImage}
-            alt="Custom background preview"
-            className="max-h-12 mx-auto rounded"
-          />
-        ) : (
-          <>
-            <Upload size={16} className="mx-auto mb-1 opacity-60" />
-            <p className="text-xs opacity-60">
-              {isDragActive ? 'Drop to upload' : 'Upload background'}
-            </p>
-          </>
-        )}
-      </div>
-
-      {/* ── Remove custom image ───────────────────────────────────────── */}
-      {customBackgroundImage && (
-        <button
-          onClick={() => {
-            setCustomBackgroundImage(null);
-            setBackground('white');
-          }}
-          className="w-full flex items-center justify-center gap-1 text-xs text-red-500 hover:text-red-600 transition-colors"
-        >
-          <Trash2 size={12} />
-          Remove custom background
-        </button>
-      )}
-
-      {/* ── Background Fit ────────────────────────────────────────────── */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-medium">Background Fit</p>
-          {/* Live badge showing the active mode */}
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/10 text-accent font-medium capitalize">
-            {SIZE_OPTIONS.find((o) => o.value === backgroundSize)?.label ?? backgroundSize}
-          </span>
-        </div>
-
-        {/* Mode buttons */}
-        <div className="grid grid-cols-2 gap-1.5">
-          {SIZE_OPTIONS.map(({ value, label, description }) => (
+      <div className="space-y-3">
+        <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.25em] ml-1">Studio Scenes</p>
+        <div className="grid grid-cols-3 gap-2">
+          {backgroundScenes.map((scene) => (
             <button
-              key={value}
-              onClick={() => setBackgroundSize(value)}
-              title={description}
-              className={`px-2 py-1.5 text-xs rounded-lg border transition-all duration-150 text-left leading-tight ${
-                backgroundSize === value
-                  ? 'border-accent bg-accent text-white shadow-sm'
-                  : 'border-border bg-muted hover:border-text-muted'
+              key={scene.id}
+              onClick={() => setBackground(scene.id)}
+              className={`relative aspect-[4/3] rounded-xl overflow-hidden border-2 transition-all duration-300 group ${
+                backgroundScene === scene.id && !customBackgroundImage
+                  ? 'border-accent shadow-xl shadow-accent/20 scale-[1.02]'
+                  : 'border-border hover:border-accent/40'
               }`}
             >
-              {label}
+              <div
+                className="w-full h-full transition-transform duration-500 group-hover:scale-110"
+                style={{
+                  background:
+                    scene.type === 'gradient'
+                      ? scene.value
+                      : scene.type === 'solid' && scene.value !== 'transparent'
+                      ? scene.value
+                      : undefined,
+                }}
+              />
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors" />
+              <span className="absolute bottom-0 left-0 right-0 text-center text-[9px] font-bold bg-black/40 backdrop-blur-[2px] text-white py-1 uppercase tracking-tighter">
+                {scene.name}
+              </span>
             </button>
           ))}
         </div>
+      </div>
 
-        {/* Custom scale slider — only shown when 'custom' is active */}
-        {backgroundSize === 'custom' && (
-          <div className="space-y-1 pt-1">
-            <div className="flex items-center justify-between text-[10px] opacity-60">
-              <span>Scale</span>
-              <span>{backgroundScale}%</span>
+      {/* ── Upload dropzone ───────────────────────────────────────────── */}
+      <div className="space-y-3">
+        <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.25em] ml-1">Custom Backdrop</p>
+        <div
+          {...getRootProps()}
+          className={`relative border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all duration-300 group ${
+            isDragActive
+              ? 'border-accent bg-accent/5 ring-4 ring-accent/10'
+              : 'border-border bg-slate-50/50 hover:border-accent/40 hover:bg-slate-50'
+          }`}
+        >
+          <input {...getInputProps()} />
+          {customBackgroundImage ? (
+            <div className="space-y-3">
+              <div className="relative inline-block">
+                <img
+                  src={customBackgroundImage}
+                  alt="Custom background preview"
+                  className="max-h-24 mx-auto rounded-xl shadow-lg border border-white"
+                />
+                <div className="absolute inset-0 rounded-xl ring-1 ring-inset ring-black/10" />
+              </div>
+              <p className="text-[10px] font-bold text-accent uppercase tracking-widest">Image Uploaded</p>
             </div>
-            <input
-              type="range"
-              min={50}
-              max={200}
-              step={1}
-              value={backgroundScale}
-              onChange={(e) => setBackgroundScale(Number(e.target.value))}
-              className="w-full accent-[var(--accent)]"
-            />
-            <div className="flex justify-between text-[9px] opacity-40">
-              <span>50%</span>
-              <span>100%</span>
-              <span>200%</span>
+          ) : (
+            <div className="space-y-2 py-2">
+              <div className="w-10 h-10 bg-white rounded-xl shadow-sm border border-border flex items-center justify-center mx-auto text-text-muted group-hover:text-accent group-hover:scale-110 transition-all">
+                <Upload size={20} />
+              </div>
+              <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest group-hover:text-text-primary transition-colors">
+                {isDragActive ? 'Drop image here' : 'Drop PNG or JPG'}
+              </p>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* Helper hint for the active non-custom modes */}
-        {backgroundSize !== 'custom' && (
-          <p className="text-[10px] opacity-40 leading-snug">
-            {SIZE_OPTIONS.find((o) => o.value === backgroundSize)?.description}
-          </p>
+        {customBackgroundImage && (
+          <button
+            onClick={() => {
+              setCustomBackgroundImage(null);
+              setBackground('white');
+            }}
+            className="w-full flex items-center justify-center gap-2 py-3 text-[10px] font-bold text-red-500 hover:bg-red-50 rounded-xl border border-transparent hover:border-red-100 transition-all uppercase tracking-widest"
+          >
+            <Trash2 size={12} />
+            Reset to Default
+          </button>
         )}
+      </div>
+
+      {/* Helper Tip */}
+      <div className="p-4 bg-slate-50 rounded-2xl border border-border/50 flex gap-3">
+        <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center text-accent shrink-0">
+          <ImageIcon size={16} />
+        </div>
+        <p className="text-[10px] font-medium text-text-muted leading-relaxed">
+          Upload high-resolution landscape images for the best results. Backgrounds are automatically scaled to fit your canvas.
+        </p>
       </div>
     </div>
   );

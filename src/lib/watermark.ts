@@ -22,8 +22,9 @@ export async function drawWatermark(
     }
   }
 
-  const hasText = !!exportOptions.watermarkText;
-  const hasLogo = !!watermarkImg;
+  const mode = exportOptions.watermarkMode || 'both';
+  const hasText = (mode === 'text' || mode === 'both') && !!exportOptions.watermarkText;
+  const hasLogo = (mode === 'logo' || mode === 'both') && !!watermarkImg;
 
   if (!hasText && !hasLogo) return;
 

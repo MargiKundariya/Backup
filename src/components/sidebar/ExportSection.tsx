@@ -40,9 +40,8 @@ export function ExportSection({ onExportComplete }: ExportSectionProps) {
   const setStagingCallback = useEditorStore((s) => s.setStagingCallback);
   const clearStagingCallback = useEditorStore((s) => s.clearStagingCallback);
 
-  const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>(() =>
-    selectedDevice ? [selectedDevice.id] : []
-  );
+  const selectedDevices = useEditorStore((s) => s.selectedDevices);
+  const selectedDeviceIds = useMemo(() => selectedDevices.map(d => d.id), [selectedDevices]);
   const [showAllDevices, setShowAllDevices] = useState(false);
   const [showSaveSet, setShowSaveSet] = useState(false);
   const [newSetName, setNewSetName] = useState('');
@@ -74,13 +73,6 @@ export function ExportSection({ onExportComplete }: ExportSectionProps) {
     loadCustomDevices();
   }, [loadCustomDevices]);
 
-  // Ensure selected device is always in the list
-  useEffect(() => {
-    if (selectedDevice && !selectedDeviceIds.includes(selectedDevice.id)) {
-      setSelectedDeviceIds((prev) => [selectedDevice.id, ...prev.filter((id) => id !== selectedDevice.id)]);
-    }
-  }, [selectedDevice?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const editorTransform = activeZoneId ? zoneDesigns[activeZoneId]?.transform : null;
   const editorZoneBounds = selectedDevice?.zones.find((z) => z.id === activeZoneId)?.bounds ?? null;
   const canUseEditorPosition = positionMode === 'editor-position' && !!editorTransform && !!editorZoneBounds;
@@ -103,18 +95,25 @@ export function ExportSection({ onExportComplete }: ExportSectionProps) {
 
   // All possible design × device combinations
   const allCombos = useMemo(
-    () =>
-      effectiveDesigns
+    () => {
+      const targetDevices = selectedDevices.length > 0 
+        ? selectedDevices 
+        : selectedDevice 
+          ? [selectedDevice] 
+          : [];
+
+      return effectiveDesigns
         .flatMap((design, di) =>
-          selectedDeviceIds.map((deviceId) => ({
-            key: `${di}::${deviceId}`,
+          targetDevices.map((device) => ({
+            key: `${di}::${device.id}`,
             design,
             designIndex: di,
-            device: allDevices.find((d) => d.id === deviceId)!,
+            device,
           }))
         )
-        .filter((c) => c.device),
-    [effectiveDesigns, selectedDeviceIds, allDevices]
+        .filter((c) => c.device);
+    },
+    [effectiveDesigns, selectedDevices, selectedDevice]
   );
 
   // Combos that will actually be exported (respects selectedCombos filter)
@@ -124,9 +123,9 @@ const totalCombinations = allCombos.length;
   const isSingleExport = useMemo(
     () =>
       effectiveDesigns.length === 1 &&
-      selectedDeviceIds.length === 1 &&
-      selectedDeviceIds[0] === selectedDevice?.id,
-    [effectiveDesigns.length, selectedDeviceIds, selectedDevice?.id]
+      (selectedDevices.length === 1 || (!selectedDevices.length && selectedDevice)) &&
+      (selectedDevices[0]?.id === selectedDevice?.id || !selectedDevices.length),
+    [effectiveDesigns.length, selectedDevices, selectedDevice]
   );
 
   const capturedCount = Object.keys(perDesignTransforms).length;
@@ -225,11 +224,7 @@ const totalCombinations = allCombos.length;
     });
   };
 
-  const toggleDevice = (id: string) => {
-    setSelectedDeviceIds((prev) =>
-      prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]
-    );
-  };
+
 
   const buildFilename = (device: { brand: string; name: string }, designName: string, index = 1, total = 1) =>
     resolveFilename(exportOptions.filenamePattern, {
@@ -279,7 +274,8 @@ const totalCombinations = allCombos.length;
         // Bulk export: build jobs only for selected (active) combos
         const jobs: BulkExportJob[] = [];
 
-        for (const combo of allCombos) {
+        for (let i = 0; i < allCombos.length; i++) {
+          const combo = allCombos[i];
           const { design, designIndex: di, device } = combo;
 
           const captured = perDesignTransforms[di];
@@ -292,11 +288,14 @@ const totalCombinations = allCombos.length;
                   : null
               : null;
 
+          const filename = buildFilename(device, design.name, i + 1, totalCombinations);
+
           // Note: using any here since the typings in BulkExportJob actually want designDataUrl etc.
           jobs.push({
             device,
             designDataUrl: design.dataUrl,
             designName: design.name,
+            filename,
             ...(ref ?? {}),
           } as any);
         }
@@ -411,37 +410,6 @@ const totalCombinations = allCombos.length;
             )}
           </div>
 
-          {/* Compliance background */}
-          <div>
-            <p className="text-[10px] font-medium text-text-muted mb-1">Background</p>
-            <div className="flex gap-1">
-              {([
-                { id: 'scene',       label: 'Scene',  title: 'Use the current scene background' },
-                { id: 'white',       label: 'White',  title: 'Pure white — required for Amazon main image' },
-                { id: 'black',       label: 'Black',  title: 'Pure black background' },
-                { id: 'transparent', label: 'None',   title: 'Transparent background (PNG only)' },
-              ] as { id: ComplianceBackground; label: string; title: string }[]).map(({ id, label, title }) => (
-                <button
-                  key={id}
-                  onClick={() => setExportOptions({ complianceBackground: id })}
-                  title={title}
-                  className={`flex-1 px-1.5 py-1 text-[9px] font-medium rounded-lg border transition-all duration-200 ${
-                    exportOptions.complianceBackground === id
-                      ? 'bg-accent text-white border-accent shadow-sm'
-                      : 'bg-surface-hover text-text-secondary border-border hover:border-accent/50'
-                  }`}
-                >
-                  {id === 'white' && <span className="inline-block w-2 h-2 rounded-sm border border-border bg-white mr-0.5 align-middle" />}
-                  {id === 'black' && <span className="inline-block w-2 h-2 rounded-sm bg-black mr-0.5 align-middle" />}
-                  {id === 'transparent' && <span className="inline-block w-2 h-2 rounded-sm border border-dashed border-current mr-0.5 align-middle" />}
-                  {label}
-                </button>
-              ))}
-            </div>
-            {exportOptions.complianceBackground === 'transparent' && exportOptions.format === 'jpeg' && (
-              <p className="text-[9px] text-orange-500 mt-0.5">Transparent requires PNG format.</p>
-            )}
-          </div>
 
           {/* File size warning */}
           {fileSizeWarningMsg && (
@@ -477,18 +445,36 @@ const totalCombinations = allCombos.length;
                   />
                 </div>
                 
-                <div className="pt-1">
-                  <p className="text-[9px] text-text-muted leading-relaxed">
+                <div className="space-y-2 pt-1">
+                  <p className="text-[9px] font-medium text-text-muted">Content Mode</p>
+                  <div className="flex gap-1">
+                    {([
+                      { id: 'text', label: 'Only Text' },
+                      { id: 'logo', label: 'Only Logo' },
+                      { id: 'both', label: 'Both' },
+                    ] as const).map(({ id, label }) => (
+                      <button
+                        key={id}
+                        onClick={() => setExportOptions({ watermarkMode: id })}
+                        className={`flex-1 px-1.5 py-1 text-[8px] font-bold rounded-md border transition-all ${
+                          (exportOptions.watermarkMode || 'both') === id
+                            ? 'bg-accent text-white border-accent shadow-sm'
+                            : 'bg-surface-hover text-text-muted border-border hover:border-accent/40'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  
+                  <p className="text-[9px] text-text-muted leading-relaxed italic">
                     Watermarks are applied in a tiled pattern over the entire image. 
-                    {user?.logo_url && !exportOptions.watermarkText && " Your logo will be used."}
-                    {user?.logo_url && exportOptions.watermarkText && " Both your logo and text will be used."}
-                    {!user?.logo_url && exportOptions.watermarkText && " Only your text will be used."}
+                    {(exportOptions.watermarkMode === 'logo' || (exportOptions.watermarkMode || 'both') === 'both') && !user?.logo_url && (
+                      <span className="block text-orange-500 not-italic mt-0.5">
+                        ⚠️ No logo found in profile. Upload one in User settings.
+                      </span>
+                    )}
                   </p>
-                  {!user?.logo_url && !exportOptions.watermarkText && (
-                    <p className="text-[9px] text-orange-500 mt-0.5">
-                      No logo saved in profile. Upload one in User settings or enter text above.
-                    </p>
-                  )}
                 </div>
               </div>
             )}
@@ -533,163 +519,6 @@ const totalCombinations = allCombos.length;
           </div>
         </div>
 
-        {/* Target devices */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Target Devices</p>
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setShowSaveSet((v) => !v)}
-                title="Save current selection as a lineup"
-                className="text-text-muted hover:text-accent transition-colors"
-              >
-                {showSaveSet ? <BookmarkCheck size={11} className="text-accent" /> : <BookmarkPlus size={11} />}
-              </button>
-              <button
-                onClick={() => setShowAllDevices((v) => !v)}
-                title={showAllDevices ? 'Collapse device list' : 'Show all devices'}
-                className="text-[10px] text-accent hover:text-accent-hover flex items-center gap-0.5"
-              >
-                {selectedDeviceIds.length} selected
-                <ChevronDown size={10} className={`transition-transform duration-200 ${showAllDevices ? 'rotate-180' : ''}`} />
-              </button>
-            </div>
-          </div>
-
-          {deviceSets.length > 0 && (
-            <div className="flex items-center gap-1">
-              <select
-                onChange={(e) => {
-                  const set = deviceSets.find((s) => s.id === e.target.value);
-                  if (set) setSelectedDeviceIds(set.device_ids);
-                  e.target.value = '';
-                }}
-                defaultValue=""
-                className="flex-1 px-2 py-1 text-[10px] rounded-lg bg-surface border border-border focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent text-text-secondary transition-all"
-                title="Load a saved device lineup"
-              >
-                <option value="" disabled>Load lineup…</option>
-                {deviceSets.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name} ({s.device_ids.length})</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {showSaveSet && (
-            <div className="flex gap-1">
-              <input
-                type="text"
-                value={newSetName}
-                onChange={(e) => setNewSetName(e.target.value)}
-                placeholder="Lineup name…"
-                className="flex-1 px-2 py-1 text-[10px] rounded-lg bg-surface border border-border focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent placeholder:text-text-muted transition-all"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && newSetName.trim()) {
-                    saveSet(newSetName.trim(), selectedDeviceIds);
-                    setNewSetName('');
-                    setShowSaveSet(false);
-                    toast('Lineup saved!', 'success');
-                  }
-                }}
-              />
-              <button
-                onClick={() => {
-                  if (!newSetName.trim()) return;
-                  saveSet(newSetName.trim(), selectedDeviceIds);
-                  setNewSetName('');
-                  setShowSaveSet(false);
-                  toast('Lineup saved!', 'success');
-                }}
-                disabled={!newSetName.trim()}
-                className="px-2 py-1 text-[10px] rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-40 transition-all"
-              >
-                Save
-              </button>
-            </div>
-          )}
-
-          {deviceSets.length > 0 && showSaveSet && (
-            <div className="space-y-0.5">
-              {deviceSets.map((s) => (
-                <div key={s.id} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-surface-hover text-[10px]">
-                  <span className="flex-1 truncate text-text-secondary">{s.name}</span>
-                  <span className="text-text-muted">{s.device_ids.length} devices</span>
-                  <button
-                    onClick={() => deleteSet(s.id)}
-                    title="Delete lineup"
-                    className="text-text-muted hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 size={10} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Chip display of selected devices */}
-          <div className="flex flex-wrap gap-1">
-            {selectedDeviceIds.map((id) => {
-              const device = allDevices.find((d) => d.id === id);
-              if (!device) return null;
-              const isCurrent = device.id === selectedDevice?.id;
-              return (
-                <span
-                  key={id}
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all ${
-                    isCurrent
-                      ? 'bg-accent text-white'
-                      : 'bg-accent-light text-accent border border-accent/20'
-                  }`}
-                >
-                  {device.name}
-                  {!isCurrent && (
-                    <button
-                      onClick={() => toggleDevice(id)}
-                      title="Remove device"
-                      className="hover:text-red-500 transition-colors"
-                    >
-                      <X size={9} />
-                    </button>
-                  )}
-                </span>
-              );
-            })}
-          </div>
-
-          {showAllDevices && (
-            <div className="glass-inset rounded-xl p-2 space-y-1 max-h-32 overflow-y-auto">
-              <div className="flex justify-between mb-1">
-                <button
-                  onClick={() => setSelectedDeviceIds(allDevices.map((d) => d.id))}
-                  className="text-[9px] text-accent hover:text-accent-hover"
-                >
-                  Select all
-                </button>
-                <button
-                  onClick={() => setSelectedDeviceIds(selectedDevice ? [selectedDevice.id] : [])}
-                  className="text-[9px] text-text-muted hover:text-text-secondary"
-                >
-                  Reset
-                </button>
-              </div>
-              {allDevices.map((device) => (
-                <label
-                  key={device.id}
-                  className="flex items-center gap-2 text-[10px] p-1 hover:bg-white/40 rounded-lg cursor-pointer transition-colors"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedDeviceIds.includes(device.id)}
-                    onChange={() => toggleDevice(device.id)}
-                    className="rounded border-border"
-                  />
-                  <span className="truncate">{device.name}</span>
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
 
         {/* Position mode — only when multi-design or multi-device */}
         {showPositionMode && (

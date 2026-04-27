@@ -1,11 +1,13 @@
 'use client';
 
+import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Smartphone, Monitor, Tablet, Watch, Image as ImageIcon, Sliders, Download,
   Settings, PanelLeftClose, Package, LogOut, LogIn, Cloud,
-  CloudOff, Loader2, Coins, PieChart, Layout, ChevronRight, User
+  CloudOff, Loader2, Coins, PieChart, Layout, ChevronRight, User, Menu
 } from 'lucide-react';
+import { Modal } from '@/components/ui/Modal';
 import { useCredits } from '@/hooks/useCredits';
 import { useEditorStore } from '@/lib/store';
 import { SidebarSection } from './SidebarSection';
@@ -13,6 +15,7 @@ import { DeviceCatalog } from './DeviceCatalog';
 import { DesignUploader } from './DesignUploader';
 import { CustomizeSection } from './CustomizeSection';
 import { ExportSection } from './ExportSection';
+import { SettingsPanel } from './SettingsPanel';
 import { useAuth, signOut } from '@/hooks/useAuth';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 
@@ -39,6 +42,7 @@ export function Sidebar({ onCollapse, onExportComplete }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user } = useAuth();
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const selectedDevice = useEditorStore((s) => s.selectedDevice);
   const zoneDesigns = useEditorStore((s) => s.zoneDesigns);
 
@@ -68,8 +72,12 @@ export function Sidebar({ onCollapse, onExportComplete }: SidebarProps) {
             <p className="text-[10px] text-accent font-bold uppercase tracking-widest leading-none">Studio v2.4</p>
           </div>
           {onCollapse && (
-            <button onClick={onCollapse} className="p-1.5 text-text-muted hover:text-accent transition-all rounded-lg hover:bg-slate-100">
-              <PanelLeftClose size={14} />
+            <button 
+              onClick={onCollapse} 
+              className="p-2 text-text-muted hover:text-accent transition-all rounded-xl hover:bg-slate-50 border border-transparent hover:border-border/50"
+              title="Collapse Tools"
+            >
+              <Menu size={18} />
             </button>
           )}
         </div>
@@ -78,7 +86,7 @@ export function Sidebar({ onCollapse, onExportComplete }: SidebarProps) {
       <div className="glass-separator px-4" />
 
       {/* Navigation & Tool Scroll Area */}
-      <div className="flex-1 overflow-y-auto px-3 py-6 space-y-6 scrollbar-hide">
+      <div className="flex-1 overflow-y-auto px-3 py-6 space-y-6 custom-scrollbar">
         {/* Main Navigation */}
         <div className="space-y-1.5">
           <p className="px-4 text-[10px] font-bold text-text-muted uppercase tracking-[0.25em] mb-4">Main Menu</p>
@@ -97,21 +105,22 @@ export function Sidebar({ onCollapse, onExportComplete }: SidebarProps) {
         <div className="space-y-1">
           <p className="px-4 text-[10px] font-bold text-text-muted uppercase tracking-[0.25em] mb-4">Design Tools</p>
 
-          <SidebarSection id="device" icon={DeviceIcon} title="Device" badge={selectedDevice?.name}>
+          <SidebarSection id="device" icon={DeviceIcon} title="Device" step={1}>
             <DeviceCatalog />
           </SidebarSection>
 
-          <SidebarSection id="design" icon={ImageIcon} title="Design" disabled={!selectedDevice} disabledTooltip="Select a device first">
+          <SidebarSection id="design" icon={ImageIcon} title="Design" step={2} disabled={!selectedDevice} disabledTooltip="Select a device first">
             <DesignUploader />
           </SidebarSection>
 
-          <SidebarSection id="customize" icon={Sliders} title="Customize" disabled={!hasDesign} disabledTooltip="Upload a design first">
+          <SidebarSection id="customize" icon={Sliders} title="Customize" step={3} disabled={!hasDesign} disabledTooltip="Upload a design first">
             <CustomizeSection />
           </SidebarSection>
 
-          <SidebarSection id="export" icon={Download} title="Export" disabled={!hasDesign} disabledTooltip="Upload a design first">
+          <SidebarSection id="export" icon={Download} title="Export" step={4} disabled={!hasDesign} disabledTooltip="Upload a design first">
             <ExportSection onExportComplete={onExportComplete} />
           </SidebarSection>
+
         </div>
       </div>
 
@@ -123,12 +132,29 @@ export function Sidebar({ onCollapse, onExportComplete }: SidebarProps) {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-bold text-text-primary truncate uppercase tracking-tighter">{user?.email || 'Guest User'}</p>
+            <button 
+              onClick={() => setIsPasswordModalOpen(true)}
+              className="text-[8px] text-accent hover:underline font-bold uppercase tracking-[0.2em] mt-0.5 block"
+            >
+              Change Password
+            </button>
           </div>
           <button onClick={handleLogout} className="p-1.5 text-text-muted hover:text-red-500 transition-all rounded-lg hover:bg-red-50" title="Sign Out">
             <LogOut size={14} />
           </button>
         </div>
       </div>
+
+      <Modal 
+        isOpen={isPasswordModalOpen} 
+        onClose={() => setIsPasswordModalOpen(false)} 
+        title="Account Security"
+        maxWidth="max-w-md"
+      >
+        <div className="p-2">
+          <SettingsPanel />
+        </div>
+      </Modal>
     </aside>
   );
 }

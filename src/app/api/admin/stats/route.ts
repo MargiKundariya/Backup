@@ -19,16 +19,21 @@ export async function GET(req: NextRequest) {
     const oneMonthFromNow = new Date();
     oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1);
     
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+    const startOfWeek = new Date();
+    const day = startOfWeek.getDay();
+    const diff = day === 0 ? 6 : day - 1; // Adjust to Monday
+    startOfWeek.setDate(startOfWeek.getDate() - diff);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
 
     const expiringThisWeek = [];
     const expiringThisMonth = [];
     const newThisWeek = [];
     const newThisMonth = [];
+
 
     for (const u of allUsers) {
        const expiry = new Date(u.computed_expiry);
@@ -37,8 +42,9 @@ export async function GET(req: NextRequest) {
        if (expiry >= now && expiry <= oneWeekFromNow) expiringThisWeek.push(u);
        if (expiry >= now && expiry <= oneMonthFromNow) expiringThisMonth.push(u);
 
-       if (created >= oneWeekAgo) newThisWeek.push(u);
-       if (created >= oneMonthAgo) newThisMonth.push(u);
+       if (created >= startOfWeek) newThisWeek.push(u);
+       if (created >= startOfMonth) newThisMonth.push(u);
+
     }
     
     return NextResponse.json({ 

@@ -5,7 +5,7 @@ import { User } from '@/lib/db';
 import {
   Users, Shield, UserCircle, Search, Plus, X, Loader2,
   CheckCircle2, Key, Filter, MoreHorizontal, Mail,
-  Building2, Phone, MapPin, Globe, Sparkles, Edit2, Trash2
+  Building2, Phone, MapPin, Globe, Sparkles, Edit2, Trash2, Upload, Image as ImageIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
@@ -20,6 +20,8 @@ export function UserManagement() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [resettingPasswordUser, setResettingPasswordUser] = useState<(User & { expired?: boolean }) | null>(null);
+  const [newPassword, setNewPassword] = useState('');
 
   const [formData, setFormData] = useState({
     email: '',
@@ -63,6 +65,22 @@ export function UserManagement() {
       setFormData({ email: '', password: '', full_name: '', company_name: '', phone_number: '', address: '', logo: '' });
     }
   }, [editingUser]);
+  
+  // File upload handler
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        setError('Logo file size must be under 2MB');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData({ ...formData, logo: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -121,6 +139,41 @@ export function UserManagement() {
       }
     } catch (err) {
       console.error('Failed to delete user', err);
+    }
+  }
+
+  async function handleResetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!resettingPasswordUser || !newPassword) return;
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'reset-password',
+          id: resettingPasswordUser.id,
+          password: newPassword
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to reset password');
+      }
+
+      setSuccess(`Password for ${resettingPasswordUser.email} has been reset.`);
+      setNewPassword('');
+      setTimeout(() => {
+        setResettingPasswordUser(null);
+        setSuccess(null);
+      }, 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -276,6 +329,13 @@ export function UserManagement() {
                           <Edit2 size={18} />
                         </button>
                         <button
+                          onClick={() => setResettingPasswordUser(user)}
+                          className="p-2 text-text-muted hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-all"
+                          title="Reset Password"
+                        >
+                          <Key size={18} />
+                        </button>
+                        <button
                           onClick={() => handleDeleteUser(user.id)}
                           className="p-2 text-text-muted hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
                           title="Delete User"
@@ -375,6 +435,36 @@ export function UserManagement() {
                   </div>
 
                   <div className="space-y-3">
+                    <label className="text-[10px] font-bold text-text-muted uppercase tracking-[0.3em] ml-2">Brand Identity (Logo)</label>
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 bg-slate-50 border border-border border-dashed rounded-2xl flex items-center justify-center overflow-hidden shrink-0 group/logo">
+                        {formData.logo ? (
+                          <img src={formData.logo} alt="Preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <ImageIcon size={20} className="text-text-muted opacity-30" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <input
+                          type="file"
+                          id="logo-upload"
+                          accept="image/*"
+                          onChange={handleLogoUpload}
+                          className="hidden"
+                        />
+                        <label
+                          htmlFor="logo-upload"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-border rounded-xl text-[10px] font-bold uppercase tracking-wider text-text-secondary hover:border-accent hover:text-accent cursor-pointer transition-all shadow-sm"
+                        >
+                          <Upload size={14} />
+                          {formData.logo ? 'Change Logo' : 'Upload Asset'}
+                        </label>
+                        <p className="text-[9px] text-text-muted mt-1.5 ml-1">PNG or JPEG, max 2MB.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
                     <label className="text-[10px] font-bold text-text-muted uppercase tracking-[0.3em] ml-2">Phone Number</label>
                     <input
                       type="text"
@@ -453,6 +543,75 @@ export function UserManagement() {
                     )}
                   </Button>
                 </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Password Modal */}
+      {resettingPasswordUser && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-text-primary/60 backdrop-blur-xl overflow-y-auto animate-in fade-in duration-500">
+          <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-500 my-auto border border-white/20">
+            <div className="px-10 py-8 border-b border-border/50 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-600 text-white rounded-xl">
+                  <Key size={18} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-text-primary tracking-tight">Reset Password</h3>
+                  <p className="text-[10px] text-text-muted font-bold uppercase tracking-wider">{resettingPasswordUser.email}</p>
+                </div>
+              </div>
+              <button onClick={() => setResettingPasswordUser(null)} className="p-2 hover:bg-slate-200 rounded-2xl transition-all">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleResetPassword} className="p-10 space-y-6">
+              {error && (
+                <div className="p-4 bg-red-50 text-red-600 text-xs font-bold rounded-2xl border border-red-100 flex items-center gap-3">
+                  <X size={16} className="shrink-0 p-0.5 bg-red-600 text-white rounded-full" />
+                  {error}
+                </div>
+              )}
+              {success && (
+                <div className="p-4 bg-green-50 text-green-700 text-xs font-bold rounded-2xl border border-green-100 flex items-center gap-3">
+                  <CheckCircle2 size={16} className="shrink-0 text-green-600" />
+                  {success}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-text-muted uppercase tracking-[0.2em] ml-2">New Password</label>
+                <input
+                  required
+                  autoFocus
+                  type="password"
+                  placeholder="Minimum 8 characters"
+                  minLength={8}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full px-5 py-4 bg-slate-50 border border-border rounded-[20px] focus:ring-4 focus:ring-purple-500/10 focus:border-purple-600 outline-none transition-all font-bold text-sm"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setResettingPasswordUser(null)}
+                  className="flex-1 rounded-[20px] py-4 text-[10px] h-auto font-bold uppercase"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  disabled={submitting || !!success || newPassword.length < 8}
+                  type="submit"
+                  className="flex-1 rounded-[20px] py-4 text-[10px] h-auto font-bold uppercase bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-200"
+                >
+                  {submitting ? <Loader2 size={16} className="animate-spin" /> : 'Confirm Reset'}
+                </Button>
               </div>
             </form>
           </div>

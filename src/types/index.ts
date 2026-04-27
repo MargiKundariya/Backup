@@ -85,6 +85,8 @@ export interface ExportOptions {
   addWatermark?: boolean;
   /** Custom text for repeating watermark */
   watermarkText?: string;
+  /** Explicit control over what elements are shown in the watermark */
+  watermarkMode?: 'text' | 'logo' | 'both';
 }
 
 export interface BulkExportItem {

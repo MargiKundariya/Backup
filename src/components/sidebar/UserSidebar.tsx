@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
   Layout, 
@@ -16,12 +17,15 @@ import {
 } from 'lucide-react';
 import { useAuth, signOut } from '@/hooks/useAuth';
 import { useCredits } from '@/hooks/useCredits';
+import { Modal } from '@/components/ui/Modal';
+import { SettingsPanel } from './SettingsPanel';
 
 export function UserSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user } = useAuth();
   const { balance } = useCredits();
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -82,14 +86,6 @@ export function UserSidebar() {
             </button>
           );
         })}
-
-        <div className="pt-8 space-y-2">
-          <p className="px-4 text-[10px] font-bold text-text-muted uppercase tracking-[0.25em] mb-4">Support</p>
-          <button className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-text-secondary hover:bg-white hover:shadow-md transition-all">
-            <Settings size={20} className="text-text-muted" />
-            <span className="text-sm font-bold tracking-tight">Settings</span>
-          </button>
-        </div>
       </div>
 
       {/* Sidebar Footer */}
@@ -111,15 +107,28 @@ export function UserSidebar() {
           <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-accent">
             <User size={18} />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-[10px] font-bold text-text-primary truncate uppercase tracking-tighter">{user?.email || 'Guest User'}</p>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <Coins size={10} className="text-accent" />
-              <p className="text-[8px] font-bold text-accent uppercase">{balance} Credits</p>
-            </div>
+            <button 
+              onClick={() => setIsPasswordModalOpen(true)}
+              className="text-[8px] text-accent hover:underline font-bold uppercase tracking-[0.2em] mt-1 block"
+            >
+              Change Password
+            </button>
           </div>
         </div>
       </div>
+
+      <Modal 
+        isOpen={isPasswordModalOpen} 
+        onClose={() => setIsPasswordModalOpen(false)} 
+        title="Account Security"
+        maxWidth="max-w-md"
+      >
+        <div className="p-2">
+          <SettingsPanel />
+        </div>
+      </Modal>
     </aside>
   );
 }

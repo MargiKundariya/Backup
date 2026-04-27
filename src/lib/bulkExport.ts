@@ -12,6 +12,7 @@ export interface BulkExportJob {
   device: DeviceTemplate;
   designDataUrl: string;
   designName: string;
+  filename: string;
   /** If provided, scale this transform proportionally to each zone instead of auto-fitting */
   referenceTransform?: Transform;
   referenceZoneBounds?: { x: number; y: number; width: number; height: number };
@@ -58,10 +59,15 @@ async function processJob(
         rotation: ref.rotation,
       };
     } else {
-      const { scaleX, scaleY, offsetX, offsetY } = calculateFit(zw, zh, iw, ih, 'cover');
+      // Use device dimensions for 'cover' to ensure it fills the whole device
+      const { scaleX, scaleY, offsetX, offsetY } = calculateFit(
+        job.device.dimensions.width,
+        job.device.dimensions.height,
+        iw, ih, 'cover'
+      );
       transform = {
-        x: zone.bounds.x + offsetX,
-        y: zone.bounds.y + offsetY,
+        x: offsetX,
+        y: offsetY,
         scaleX,
         scaleY,
         rotation: 0,
@@ -104,11 +110,7 @@ async function processJob(
   canvas.height = 0;
 
   const ext = exportOptions.format === 'jpeg' ? 'jpg' : 'png';
-  const resolvedName = (exportOptions.filenamePattern || '{device}_{design}')
-    .replace('{device}', job.device.name)
-    .replace('{design}', job.designName)
-    .replace('{scale}', `${exportOptions.scale}`)
-    .replace('{format}', exportOptions.format);
+  const resolvedName = job.filename || `${job.device.name}_${job.designName}`;
   const safeName = resolvedName.replace(/[^a-zA-Z0-9_-]/g, '_');
 
   return { name: `${safeName}.${ext}`, blob };

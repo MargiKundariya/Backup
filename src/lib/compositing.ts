@@ -30,22 +30,13 @@ export async function compositeDevice(
   // Final output canvas
   const { canvas: output, ctx: outCtx } = createCanvas(outW, outH);
 
-  if (scale !== 1) {
-    outCtx.scale(scale, scale);
-  }
-
-  // Draw background
+  // ── Background
   if (options.backgroundColor && options.backgroundColor !== 'transparent') {
     outCtx.fillStyle = options.backgroundColor;
-    outCtx.fillRect(0, 0, w, h);
+    outCtx.fillRect(0, 0, outW, outH);
   }
 
-  // Draw watermark behind device
-  if (exportOptions) {
-    await drawWatermark(outCtx, w, h, exportOptions, watermarkUrl);
-  }
-
-  // For each zone, composite the design (with error isolation per zone)
+  // For each zone, composite the design
   for (const [zoneId, processedZone] of Object.entries(processed.zones)) {
     const design = zoneDesigns[zoneId];
     if (!design?.designImage) continue;
@@ -53,41 +44,49 @@ export async function compositeDevice(
     try {
       const designImg = await loadImage(design.designImage);
       if (designImg.naturalWidth === 0 || designImg.naturalHeight === 0) continue;
-     const zoneComposite = await compositeZone(
-      processedZone.mask,
-      processedZone.overlay,
-      designImg,
-      design.transform,
-      design.textLayers
-    );
+      
+      const zoneComposite = await compositeZone(
+        processedZone.mask,
+        processedZone.overlay,
+        designImg,
+        design.transform,
+        design.textLayers,
+        scale
+      );
       outCtx.drawImage(zoneComposite, 0, 0);
     } catch (err) {
       console.error(`[Compositing] Zone ${zoneId} failed:`, err);
     }
   }
 
-  // Draw processed overlay on top of design:
-  // - White corners removed (transparent) so background shows through
-  // - Semi-transparent frame edges render the case border
-  // - Transparent center lets design show through
-  // - Dark camera/buttons render on top
+  // Draw processed overlay on top of design
   const zoneIds = Object.keys(processed.zones);
   if (zoneIds.length > 0) {
-    outCtx.drawImage(processed.zones[zoneIds[0]].overlay, 0, 0);
+    outCtx.drawImage(processed.zones[zoneIds[0]].overlay, 0, 0, outW, outH);
+  }
+
+  // Draw watermark on top
+  if (exportOptions) {
+    await drawWatermark(outCtx, outW, outH, exportOptions, watermarkUrl);
   }
 
   return output;
 }
+
 async function compositeZone(
   mask: HTMLCanvasElement,
   overlay: HTMLCanvasElement,
   designImg: HTMLImageElement,
   transform: Transform,
-  textLayers: ZoneDesign['textLayers'] = []
+  textLayers: ZoneDesign['textLayers'] = [],
+  scale: number = 1
 ): Promise<HTMLCanvasElement> {
-  const { canvas, ctx } = createCanvas(mask.width, mask.height);
+  const outW = Math.round(mask.width * scale);
+  const outH = Math.round(mask.height * scale);
+  const { canvas, ctx } = createCanvas(outW, outH);
 
   ctx.save();
+  ctx.scale(scale, scale);
 
   ctx.translate(transform.x, transform.y);
 
@@ -107,19 +106,36 @@ async function compositeZone(
   if (transform.flipV) ctx.translate(0, -designImg.naturalHeight);
 
   ctx.globalAlpha = transform.opacity ?? 1;
-
   ctx.drawImage(designImg, 0, 0);
-
   ctx.restore();
 
-  // ✅ APPLY MASK (PERFECT ALIGNMENT)
-  ctx.globalCompositeOperation = 'destination-in';
-  ctx.drawImage(mask, 0, 0);
+  // ✅ DRAW TEXT LAYERS (Inside mask)
+  if (textLayers && textLayers.length > 0) {
+    ctx.save();
+    ctx.scale(scale, scale);
+    for (const text of textLayers) {
+      ctx.save();
+      const tt = text.transform;
+      ctx.translate(tt.x, tt.y);
+      if (tt.rotation !== 0) ctx.rotate((tt.rotation * Math.PI) / 180);
+      ctx.scale(tt.scaleX, tt.scaleY);
+      ctx.font = `${text.fontSize}px ${text.fontFamily}`;
+      ctx.fillStyle = text.color;
+      ctx.textBaseline = 'top';
+      ctx.fillText(text.content, 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
 
+  // ✅ APPLY MASK
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.drawImage(mask, 0, 0, outW, outH);
   ctx.globalCompositeOperation = 'source-over';
 
   return canvas;
 }
+
  
 /**
  * Render to a fixed square output size (for store compliance presets).
@@ -143,11 +159,6 @@ export async function compositeToOutputSize(
     finalCtx.fillRect(0, 0, outputSize, outputSize);
   }
 
-  // Draw watermark behind device
-  if (exportOptions) {
-    await drawWatermark(finalCtx, outputSize, outputSize, exportOptions, watermarkUrl);
-  }
-
   // Centre device at 85% of the output square
   const deviceScale = Math.min(
     outputSize / processed.width,
@@ -161,6 +172,11 @@ export async function compositeToOutputSize(
     0, 0, deviceCanvas.width, deviceCanvas.height,
     dx, dy, processed.width * deviceScale, processed.height * deviceScale,
   );
+
+  // Draw watermark on top
+  if (exportOptions) {
+    await drawWatermark(finalCtx, outputSize, outputSize, exportOptions, watermarkUrl);
+  }
 
   return final;
 }
@@ -214,11 +230,6 @@ export async function compositeWithBackground(
     }
   }
 
-  // Draw watermark behind device
-  if (exportOptions) {
-    await drawWatermark(finalCtx, canvasWidth, canvasHeight, exportOptions, watermarkUrl);
-  }
-
   // Center device on canvas
   const deviceScale = Math.min(
     canvasWidth / processed.width,
@@ -235,6 +246,11 @@ export async function compositeWithBackground(
     processed.width * deviceScale,
     processed.height * deviceScale
   );
+
+  // Draw watermark on top
+  if (exportOptions) {
+    await drawWatermark(finalCtx, canvasWidth, canvasHeight, exportOptions, watermarkUrl);
+  }
 
   return final;
 }

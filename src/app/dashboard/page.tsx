@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Sidebar } from '@/components/sidebar/Sidebar';
-import { PieChart, Smartphone, Plus, ArrowRight, Calendar, BarChart3, TrendingUp, History, Package, Edit3, ShieldCheck, Sparkles, Trash2, Edit2, X, Search } from 'lucide-react';
+import { PieChart, Smartphone, Plus, ArrowRight, Calendar, BarChart3, TrendingUp, History, Package, Edit3, ShieldCheck, Sparkles, Trash2, Edit2, X, Search, Menu } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useEditorStore } from '@/lib/store';
@@ -44,6 +44,7 @@ export default function DashboardPage() {
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [editingDevice, setEditingDevice] = useState<DeviceTemplate | null>(null);
   const [librarySearch, setLibrarySearch] = useState('');
+  const [leftOpen, setLeftOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) router.push('/login');
@@ -87,18 +88,31 @@ export default function DashboardPage() {
         try {
           const records = JSON.parse(localStorage.getItem('skinmockup-export-stats') || '[]');
           const now = Date.now();
-          const dayAgo = now - 24 * 60 * 60 * 1000;
-          const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
-          const monthAgo = now - 30 * 24 * 60 * 60 * 1000;
-          const yearAgo = now - 365 * 24 * 60 * 60 * 1000;
+          const todayStart = new Date();
+          todayStart.setHours(0, 0, 0, 0);
+
+          const weekStart = new Date();
+          const day = weekStart.getDay();
+          const diff = day === 0 ? 6 : day - 1;
+          weekStart.setDate(weekStart.getDate() - diff);
+          weekStart.setHours(0, 0, 0, 0);
+
+          const monthStart = new Date();
+          monthStart.setDate(1);
+          monthStart.setHours(0, 0, 0, 0);
+
+          const yearStart = new Date();
+          yearStart.setMonth(0, 1);
+          yearStart.setHours(0, 0, 0, 0);
 
           const localStats = { day: 0, week: 0, month: 0, year: 0 };
           for (const r of records) {
-            if (r.timestamp > dayAgo) localStats.day += r.count;
-            if (r.timestamp > weekAgo) localStats.week += r.count;
-            if (r.timestamp > monthAgo) localStats.month += r.count;
-            if (r.timestamp > yearAgo) localStats.year += r.count;
+            if (r.timestamp >= todayStart.getTime()) localStats.day += r.count;
+            if (r.timestamp >= weekStart.getTime()) localStats.week += r.count;
+            if (r.timestamp >= monthStart.getTime()) localStats.month += r.count;
+            if (r.timestamp >= yearStart.getTime()) localStats.year += r.count;
           }
+
           setAnalytics(prev => ({ ...prev, ...localStats }));
         } catch (e) {
           console.error('Error reading local stats:', e);
@@ -149,9 +163,32 @@ export default function DashboardPage() {
 
   return (
     <div className="h-screen flex bg-canvas-bg overflow-hidden relative font-sans">
-      <div className="w-[320px] h-full flex-shrink-0">
+      {/* Mobile Menu Toggle */}
+      <button
+        onClick={() => setLeftOpen(!leftOpen)}
+        className="lg:hidden fixed top-4 left-4 z-50 w-12 h-12 flex items-center justify-center bg-white rounded-2xl shadow-xl border border-border text-text-primary active:scale-95 transition-all"
+      >
+        {leftOpen ? <X size={20} /> : <Menu size={20} />}
+      </button>
+
+      {/* Mobile Sidebar Backdrop */}
+      {leftOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 z-30 bg-text-primary/20 backdrop-blur-sm animate-in fade-in duration-300"
+          onClick={() => setLeftOpen(false)}
+        />
+      )}
+
+      {/* Responsive Sidebar */}
+      <aside className={`
+        fixed lg:relative inset-y-0 left-0 z-40
+        transition-all duration-500 ease-in-out overflow-hidden border-r border-border/50 bg-white lg:bg-white
+        ${leftOpen 
+          ? 'translate-x-0 w-[300px] min-w-[300px] lg:w-[320px] lg:min-w-[320px]' 
+          : '-translate-x-full lg:translate-x-0 lg:w-[320px] lg:min-w-[320px]'}
+      `}>
         <Sidebar />
-      </div>
+      </aside>
 
       <main className="flex-1 overflow-y-auto bg-canvas-bg h-full">
         <div className="max-w-5xl mx-auto p-6 md:p-10 pb-24">

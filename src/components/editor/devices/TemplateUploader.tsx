@@ -86,6 +86,20 @@ export function TemplateUploader({ onTemplateCreated, onCancel, device }: Templa
         await updateCustomDevice(updated);
         onTemplateCreated(updated);
       } else {
+        // Generate default zones based on category
+        const defaultZones = [];
+        const zoneCount = category === 'laptop' ? 3 : 1;
+        for (let i = 0; i < zoneCount; i++) {
+          defaultZones.push({
+            id: `zone-${i + 1}`,
+            name: category === 'laptop' 
+              ? (i === 0 ? 'Lid' : i === 1 ? 'Palmrest' : 'Bottom') 
+              : 'Body',
+            bounds: { x: 0, y: 0, width: dimensions.width, height: dimensions.height },
+            maskPath: '', // To be filled by user/system later if needed
+          });
+        }
+
         const newDevice: DeviceTemplate = {
           id: uuidv4(),
           name: displayName,
@@ -94,7 +108,7 @@ export function TemplateUploader({ onTemplateCreated, onCancel, device }: Templa
           category,
           templatePath: preview,
           dimensions,
-          zones: [],
+          zones: defaultZones,
           isCustom: true
         };
         await addCustomDevice(newDevice, preview);

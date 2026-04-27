@@ -11,7 +11,7 @@ export interface WhatsAppPayload {
 
 export async function sendWhatsAppMessage({ to, message }: WhatsAppPayload): Promise<boolean> {
   console.log(`[WhatsApp Service] Sending message to ${to}: ${message}`);
-  
+
   // In a real implementation, you would call an external API here.
   // Example with fetch to a hypothetical provider:
   /*
@@ -34,5 +34,5 @@ export async function sendWhatsAppMessage({ to, message }: WhatsAppPayload): Pro
  * Formats a license expiration reminder message
  */
 export function formatExpiryReminder(userName: string, daysLeft: number, expiryDate: string): string {
-  return `Hello ${userName}! \n\nThis is a friendly reminder that your Skin Mockup license is set to expire in ${daysLeft} days (on ${new Date(expiryDate).toLocaleDateString()}). \n\nTo avoid any interruption in your workflow, please renew your subscription in the dashboard. \n\nThank you for choosing Skin Mockup!`;
+  return `Hello ${userName}! \n\nThis is a friendly reminder that your Skin Mockup license is set to expire in ${daysLeft} days (on ${new Date(expiryDate).toLocaleDateString()}). \n\nTo avoid any interruption in your workflow, please renew your subscription  by contaccting Admin. \n\nThank you for choosing Skin Mockup!`;
 }

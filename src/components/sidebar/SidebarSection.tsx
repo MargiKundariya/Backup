@@ -2,12 +2,14 @@
 
 import { useEditorStore } from '@/lib/store';
 import { ChevronDown, type LucideIcon } from 'lucide-react';
+import { useRouter, usePathname } from 'next/navigation';
 
 interface SidebarSectionProps {
   id: string;
   title: string;
   icon: LucideIcon;
   badge?: string | number;
+  step?: number;
   defaultOpen?: boolean;
   disabled?: boolean;
   disabledTooltip?: string;
@@ -19,18 +21,26 @@ export function SidebarSection({
   title,
   icon: Icon,
   badge,
+  step,
   disabled = false,
   disabledTooltip,
   children,
 }: SidebarSectionProps) {
   const activeSection = useEditorStore((s) => s.activeSidebarSection);
   const setActiveSection = useEditorStore((s) => s.setActiveSidebarSection);
+  const router = useRouter();
+  const pathname = usePathname();
   
   const open = activeSection === id;
 
   const toggle = () => {
     if (disabled) return;
     setActiveSection(open ? null : id);
+    
+    // If not on the editor page, navigate back to it
+    if (pathname !== '/') {
+      router.push('/');
+    }
   };
 
   return (
@@ -61,6 +71,14 @@ export function SidebarSection({
         }`}>
           {title}
         </span>
+        {step && (
+          <div className="flex items-center gap-1.5 mr-2">
+            <span className="text-[8px] font-black text-text-muted/40 uppercase tracking-widest">Step</span>
+            <div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center text-[9px] font-black text-text-muted border border-border/50">
+              {step}
+            </div>
+          </div>
+        )}
         {badge && (
           <span className="text-[9px] font-bold text-accent bg-accent/8 px-2 py-0.5 rounded-full truncate max-w-[110px]">
             {badge}

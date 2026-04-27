@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -13,6 +14,11 @@ interface ModalProps {
 
 export function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-2xl' }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Close on Escape key
   useEffect(() => {
@@ -36,16 +42,16 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-2xl'
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
-  return (
+  const modalContent = (
     <div 
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm animate-in fade-in duration-300"
+      className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm animate-in fade-in duration-300"
       onClick={handleBackdropClick}
     >
       <div 
         ref={modalRef}
-        className={`w-full ${maxWidth} bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-white/20 overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-300`}
+        className={`w-full ${maxWidth} bg-white rounded-3xl shadow-2xl border border-white/20 overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-300`}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
           {title ? (
@@ -53,7 +59,7 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-2xl'
           ) : <div />}
           <button 
             onClick={onClose}
-            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-text-muted transition-colors"
+            className="p-2 hover:bg-slate-100 rounded-xl text-text-muted transition-colors"
           >
             <X size={20} />
           </button>
@@ -65,4 +71,7 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-2xl'
       </div>
     </div>
   );
+
+  const root = document.getElementById('modal-root');
+  return root ? createPortal(modalContent, root) : null;
 }

@@ -10,17 +10,41 @@ import { useAutoSave } from '@/hooks/useAutoSave';
 import { useDesignLoader } from '@/hooks/useDesignLoader';
 import { useOnboarding } from '@/hooks/useOnboarding';
 import { OnboardingTip } from '@/components/ui/OnboardingTip';
-import { PanelLeft, PanelRight, Layout } from 'lucide-react';
+import { PanelLeft, PanelRight, Layout, Menu, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { saveWork } from '@/lib/saveDesign';
 
 export default function Home() {
   const router = useRouter();
   const activeZoneId = useEditorStore((s) => s.activeZoneId);
-  const selectedDevice = useEditorStore((s) => s.selectedDevice);
   const removeDesign = useEditorStore((s) => s.removeDesign);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
+  const selectedDevices = useEditorStore((s) => s.selectedDevices);
+  const activePreviewDeviceId = useEditorStore((s) => s.activePreviewDeviceId);
+  const setActivePreviewDevice = useEditorStore((s) => s.setActivePreviewDevice);
 
+  // Ensure the preview device is set and properties panel stays open when returning from dashboard
+  useEffect(() => {
+    if (selectedDevices.length > 0) {
+      // Set preview device if not already set
+      if (!activePreviewDeviceId) {
+        setActivePreviewDevice(selectedDevices[0].id);
+      }
+      // Keep properties panel open for multi-device selection
+      setRightOpen(true);
+    }
+  }, [selectedDevices, activePreviewDeviceId, setActivePreviewDevice]);
+
+  // Sync selectedDevice and activeZoneId with activePreviewDeviceId after navigation
+  useEffect(() => {
+    if (!activePreviewDeviceId) return;
+    const state = useEditorStore.getState();
+    const dev = state.selectedDevices.find((d) => d.id === activePreviewDeviceId) || state.selectedDevice;
+    if (dev) {
+      useEditorStore.setState({ selectedDevice: dev, activeZoneId: dev.zones?.[0]?.id ?? null });
+    }
+  }, [activePreviewDeviceId]);
   // Auto-save to backend when user is signed in
   useAutoSave();
 
@@ -67,6 +91,22 @@ export default function Home() {
 
   return (
     <div className="h-screen flex bg-canvas-bg overflow-hidden relative font-sans">
+      {/* Mobile Menu Toggle */}
+      <button
+        onClick={() => setLeftOpen(!leftOpen)}
+        className="lg:hidden fixed top-4 left-4 z-50 w-12 h-12 flex items-center justify-center bg-white rounded-2xl shadow-xl border border-border text-text-primary active:scale-95 transition-all"
+      >
+        {leftOpen ? <X size={20} /> : <Menu size={20} />}
+      </button>
+
+      {/* Mobile Sidebar Backdrop */}
+      {leftOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 z-30 bg-text-primary/20 backdrop-blur-sm animate-in fade-in duration-300"
+          onClick={() => setLeftOpen(false)}
+        />
+      )}
+
       {/* Editor Content Area */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Loading overlay while restoring a saved design */}
@@ -79,24 +119,35 @@ export default function Home() {
           </div>
         )}
         
-        {/* Left tool sidebar toggle — shown when sidebar is collapsed */}
+        {/* Left tool sidebar toggle — shown when sidebar is collapsed (Desktop Only) */}
         {!leftOpen && (
           <button
             onClick={() => setLeftOpen(true)}
             aria-label="Open sidebar"
             title="Open tools"
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-20 flex items-center justify-center w-8 h-14 bg-accent text-white rounded-r-2xl shadow-2xl hover:scale-110 active:scale-95 transition-all duration-300 animate-pulse"
+            className="hidden lg:flex absolute left-6 top-6 z-30 items-center justify-center w-12 h-12 bg-white text-text-primary rounded-2xl shadow-xl border border-border hover:scale-110 active:scale-95 transition-all duration-300 group"
           >
-            <PanelLeft size={16} />
+            <Menu size={20} className="group-hover:text-accent transition-colors" />
           </button>
         )}
 
-        {/* Unified Sidebar (Navigation + Design Tools) */}
-        <div className={`transition-all duration-500 ease-in-out overflow-hidden border-r border-border/50 bg-slate-50/30 ${leftOpen ? 'w-[320px] min-w-[320px]' : 'w-0 min-w-0'}`}>
+        <aside className={`
+          fixed lg:relative inset-y-0 left-0 z-40
+          transition-all duration-500 ease-in-out overflow-hidden border-r border-border/50 bg-white lg:bg-slate-50/30
+          ${leftOpen 
+            ? 'translate-x-0 w-[300px] min-w-[300px] lg:w-[320px] lg:min-w-[320px]' 
+            : '-translate-x-full lg:translate-x-0 lg:w-0 lg:min-w-0'}
+        `}>
           <ErrorBoundary fallbackLabel="Sidebar">
-            <Sidebar onCollapse={() => setLeftOpen(false)} onExportComplete={dismissOnboarding} />
+            <Sidebar 
+              onCollapse={() => {
+                setLeftOpen(false);
+                saveWork();
+              }} 
+              onExportComplete={dismissOnboarding} 
+            />
           </ErrorBoundary>
-        </div>
+        </aside>
 
         <ErrorBoundary fallbackLabel="Canvas">
           <MockupCanvas />

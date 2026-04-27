@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { UserWithLicense } from '@/lib/db';
 import {
   Calendar, CheckCircle, AlertCircle, User, Mail, ShieldCheck,
-  Key, Clock, X, Loader2, ArrowRight, Shield
+  Key, Clock, X, Loader2, ArrowRight, Shield, Plus
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
@@ -190,31 +190,31 @@ export function LicenseManagement() {
 
       {/* Extend License Modal */}
       {extendingLicense && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-text-primary/60 backdrop-blur-xl animate-in fade-in duration-500">
-          <div className="bg-white rounded-[48px] shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-500 my-auto border border-white/20">
-            <div className="px-10 py-8 border-b border-border/50 flex items-center justify-between bg-slate-50/50 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full -mr-16 -mt-16 blur-2xl" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-text-primary/60 backdrop-blur-xl animate-in fade-in duration-500">
+          <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-500 my-auto border border-white/20">
+            <div className="px-8 py-5 border-b border-border/50 flex items-center justify-between bg-slate-50/50 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full -mr-12 -mt-12 blur-xl" />
               <div className="relative z-10 flex items-center gap-3">
-                <div className="p-2 bg-amber-500 text-white rounded-xl shadow-lg shadow-amber-500/20">
-                  <Clock size={20} />
+                <div className="p-2 bg-amber-500 text-white rounded-lg shadow-lg shadow-amber-500/20">
+                  <Clock size={18} />
                 </div>
-                <h3 className="text-2xl font-bold text-text-primary tracking-tight">Adjust Expiration</h3>
+                <h3 className="text-xl font-bold text-text-primary tracking-tight">Adjust Expiration</h3>
               </div>
               <button
                 onClick={() => setExtendingLicense(null)}
-                className="relative z-10 p-3 hover:bg-slate-200 rounded-2xl transition-all duration-300 text-text-muted"
+                className="relative z-10 p-2 hover:bg-slate-200 rounded-xl transition-all duration-300 text-text-muted"
               >
-                <X size={24} />
+                <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleExtendLicense} className="p-10 space-y-8">
-              <div className="p-6 bg-slate-50 rounded-3xl border border-border/60 relative overflow-hidden">
+            <form onSubmit={handleExtendLicense} className="p-8 space-y-6">
+              <div className="p-5 bg-slate-50 rounded-2xl border border-border/60 relative overflow-hidden">
                 <div className="relative z-10">
-                  <p className="text-[10px] text-text-muted uppercase font-bold tracking-[0.2em] mb-1">Target Account</p>
-                  <p className="text-base font-bold text-text-primary">{extendingLicense.full_name || extendingLicense.email}</p>
-                  <p className="text-xs text-text-muted mt-2 flex items-center gap-2">
-                    <Shield size={12} className="opacity-50" />
+                  <p className="text-[9px] text-text-muted uppercase font-bold tracking-[0.2em] mb-1">Target Account</p>
+                  <p className="text-sm font-bold text-text-primary">{extendingLicense.full_name || extendingLicense.email}</p>
+                  <p className="text-[11px] text-text-muted mt-1.5 flex items-center gap-2">
+                    <Shield size={10} className="opacity-50" />
                     Current Termination: {new Date(extendingLicense.computed_expiry).toLocaleDateString()}
                   </p>
                 </div>
@@ -227,9 +227,9 @@ export function LicenseManagement() {
                 </div>
               )}
 
-              <div className="space-y-4">
-                <p className="text-[10px] font-bold text-text-muted uppercase tracking-[0.2em] ml-2">Quick Extension</p>
-                <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-3">
+                <p className="text-[9px] font-bold text-text-muted uppercase tracking-[0.2em] ml-2">Quick Extension</p>
+                <div className="grid grid-cols-2 gap-2">
                   {[
                     { label: '+1 Month', value: 1 },
                     { label: '+3 Months', value: 3 },
@@ -240,44 +240,44 @@ export function LicenseManagement() {
                       key={option.label}
                       type="button"
                       onClick={() => extendBy(option.value)}
-                      className="px-4 py-4 text-xs font-bold border border-border bg-white text-text-primary rounded-[20px] hover:border-accent hover:text-accent transition-all flex items-center justify-center gap-2 active:scale-95"
+                      className="px-4 py-3 text-[11px] font-bold border border-border bg-white text-text-primary rounded-xl hover:border-accent hover:text-accent transition-all flex items-center justify-center gap-2 active:scale-95"
                     >
-                      <Plus size={14} />
+                      <Plus size={12} />
                       {option.label}
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className="space-y-3 pt-2">
-                <label className="text-[10px] font-bold text-text-muted uppercase tracking-[0.2em] ml-2">Manual Override</label>
+              <div className="space-y-2 pt-1">
+                <label className="text-[9px] font-bold text-text-muted uppercase tracking-[0.2em] ml-2">Manual Override</label>
                 <input
                   required
                   type="date"
                   value={newExpiryDate}
                   min={new Date().toISOString().split('T')[0]}
                   onChange={(e) => setNewExpiryDate(e.target.value)}
-                  className="w-full px-6 py-4 bg-slate-50 border border-border rounded-[20px] focus:ring-4 focus:ring-accent/10 focus:border-accent outline-none transition-all font-bold text-sm"
+                  className="w-full px-5 py-3 bg-slate-50 border border-border rounded-xl focus:ring-4 focus:ring-accent/10 focus:border-accent outline-none transition-all font-bold text-xs"
                 />
               </div>
 
-              <div className="pt-6 flex gap-4">
+              <div className="pt-4 flex gap-3">
                 <Button
                   type="button"
                   variant="secondary"
                   onClick={() => setExtendingLicense(null)}
-                  className="flex-1 rounded-[20px] py-6 font-bold uppercase tracking-widest text-[11px] h-auto"
+                  className="flex-1 rounded-xl py-4 font-bold uppercase tracking-widest text-[10px] h-auto"
                 >
                   Discard
                 </Button>
                 <Button
                   disabled={submitting}
                   type="submit"
-                  className="flex-1 rounded-[20px] py-6 gap-3 text-[11px] font-bold uppercase tracking-widest h-auto bg-text-primary hover:bg-black text-white shadow-xl shadow-black/10"
+                  className="flex-1 rounded-xl py-4 gap-3 text-[10px] font-bold uppercase tracking-widest h-auto bg-text-primary hover:bg-black text-white shadow-xl shadow-black/10"
                 >
                   {submitting ? (
                     <>
-                      <Loader2 size={16} className="animate-spin" />
+                      <Loader2 size={14} className="animate-spin" />
                       Saving...
                     </>
                   ) : 'Confirm Extension'}

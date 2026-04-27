@@ -22,18 +22,26 @@ const cache = new Map<string, ProcessedDevice>();
 const cacheOrder: string[] = [];
 
 export async function processTemplate(
-  device: DeviceTemplate
+  device: DeviceTemplate,
+  forceRefresh = false
 ): Promise<ProcessedDevice> {
-  const cached = cache.get(device.id);
-  if (cached) {
-    // Move to end (most recently used)
-    const idx = cacheOrder.indexOf(device.id);
-    if (idx !== -1) cacheOrder.splice(idx, 1);
-    cacheOrder.push(device.id);
-    return cached;
+  if (!forceRefresh) {
+    const cached = cache.get(device.id);
+    if (cached) {
+      // Move to end (most recently used)
+      const idx = cacheOrder.indexOf(device.id);
+      if (idx !== -1) cacheOrder.splice(idx, 1);
+      cacheOrder.push(device.id);
+      return cached;
+    }
   }
 
-  const templateImg = await loadImage(device.templatePath);
+  // Bypass browser cache if forceRefresh is true
+  const path = forceRefresh 
+    ? `${device.templatePath}${device.templatePath.includes('?') ? '&' : '?'}_t=${Date.now()}`
+    : device.templatePath;
+
+  const templateImg = await loadImage(path);
   const { canvas: templateCanvas, ctx: templateCtx } = imageToCanvas(templateImg);
   const templateData = templateCtx.getImageData(
     0,

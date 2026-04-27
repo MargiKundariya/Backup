@@ -141,6 +141,7 @@ export function DesignUploader() {
   const addToDesignQueue      = useEditorStore((s) => s.addToDesignQueue);
   const removeFromDesignQueue = useEditorStore((s) => s.removeFromDesignQueue);
   const reorderDesignQueue    = useEditorStore((s) => s.reorderDesignQueue);
+  const setActiveSidebarSection = useEditorStore((s) => s.setActiveSidebarSection);
 
   const deviceImageMap             = useEditorStore((s) => s.deviceImageMap);
   const setDeviceImageAssignment   = useEditorStore((s) => s.setDeviceImageAssignment);
@@ -239,10 +240,13 @@ export function DesignUploader() {
     }
   };
 
+  const effectiveZoneId = activeZoneId || selectedDevice?.zones[0]?.id;
+
   // Dropzone
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
-      if (!activeZoneId || acceptedFiles.length === 0) return;
+      const targetZoneId = effectiveZoneId;
+      if (!targetZoneId || acceptedFiles.length === 0) return;
       const newDesigns: { name: string; dataUrl: string }[] = [];
       let loaded = 0;
       for (const file of acceptedFiles) {
@@ -256,22 +260,27 @@ export function DesignUploader() {
           if (loaded === acceptedFiles.length) {
             addToDesignQueue(newDesigns);
             if (newDesigns[0]) {
-              setDesignImage(activeZoneId, newDesigns[0].dataUrl);
-              setTimeout(() => fitDesignToZone(activeZoneId, 'cover'), 50);
+              setDesignImage(targetZoneId, newDesigns[0].dataUrl);
+              setTimeout(() => {
+                fitDesignToZone(targetZoneId, 'cover');
+                if (!isMultiDevice) {
+                  setActiveSidebarSection('export');
+                }
+              }, 50);
             }
           }
         };
         reader.readAsDataURL(file);
       }
     },
-    [activeZoneId, setDesignImage, addToDesignQueue]
+    [effectiveZoneId, setDesignImage, addToDesignQueue, fitDesignToZone, isMultiDevice, setActiveSidebarSection]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.svg'] },
     multiple: true,
-    disabled: !activeZoneId,
+    disabled: !effectiveZoneId,
   });
 
   // Folder upload
@@ -294,7 +303,12 @@ export function DesignUploader() {
           addToDesignQueue(newDesigns);
           if (newDesigns[0]) {
             setDesignImage(activeZoneId, newDesigns[0].dataUrl);
-            setTimeout(() => fitDesignToZone(activeZoneId, 'cover'), 50);
+            setTimeout(() => {
+              fitDesignToZone(activeZoneId, 'cover');
+              if (!isMultiDevice) {
+                setActiveSidebarSection('export');
+              }
+            }, 50);
           }
         }
       };
@@ -408,14 +422,24 @@ export function DesignUploader() {
 
       {/* Multi-device banner */}
       {isMultiDevice && (
-        <div className="flex items-center gap-2 bg-accent-light/40 border border-accent/20 rounded-xl px-3 py-2">
-          <Monitor size={11} className="text-accent" />
-          <span className="text-[10px] font-semibold text-accent">
-            {selectedDevices.length} devices selected
-          </span>
-          <span className="ml-auto text-[9px] text-accent/70">
-            Click a device → then click an image to assign
-          </span>
+        <div className="flex flex-col gap-1.5 bg-accent-light/40 border border-accent/20 rounded-xl px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            <Monitor size={11} className="text-accent" />
+            <span className="text-[10px] font-bold text-accent uppercase tracking-wider">
+              {selectedDevices.length} Selected Devices
+            </span>
+          </div>
+          <p className="text-[9px] text-accent/80 font-medium leading-relaxed italic">
+            {selectedDevices.map(d => d.name).join(', ')}
+          </p>
+          <div className="pt-1 border-t border-accent/10 mt-1 flex items-center justify-between">
+            <span className="text-[8px] text-accent/60 uppercase font-bold tracking-widest">
+              Quick Assignment
+            </span>
+            <span className="text-[8px] text-accent/70 italic">
+              Select device → Select image
+            </span>
+          </div>
         </div>
       )}
 
@@ -537,16 +561,14 @@ export function DesignUploader() {
 
             {/* LEFT: image list — scrollable */}
             <div
-              className="border-r border-border overflow-y-auto"
-              style={{ scrollbarWidth: 'thin' }}
+              className="border-r border-border overflow-y-auto custom-scrollbar"
             >
               {renderImageList()}
             </div>
 
             {/* RIGHT: device list — scrollable */}
             <div
-              className="overflow-y-auto flex flex-col divide-y divide-border"
-              style={{ scrollbarWidth: 'thin' }}
+              className="overflow-y-auto flex flex-col divide-y divide-border custom-scrollbar"
             >
               {selectedDevices.map((device, di) => {
                 if (!device) return null;
@@ -627,8 +649,8 @@ export function DesignUploader() {
             </span>
           </div>
           <div
-            className="overflow-y-auto"
-            style={{ maxHeight: '220px', scrollbarWidth: 'thin' }}
+            className="overflow-y-auto custom-scrollbar"
+            style={{ maxHeight: '220px' }}
           >
             {renderImageList()}
           </div>

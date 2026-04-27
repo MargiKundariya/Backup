@@ -122,7 +122,7 @@ function CreditsContent() {
         {successMessage && (
           <div className="flex items-center gap-2 p-4 rounded-xl bg-green-500/10 border border-green-500/20">
             <CheckCircle size={16} className="text-green-600 flex-shrink-0" aria-hidden="true" />
-            <p className="text-sm text-green-700 dark:text-green-400">{successMessage}</p>
+            <p className="text-sm text-green-700">{successMessage}</p>
           </div>
         )}
 
@@ -156,7 +156,7 @@ function CreditsContent() {
               <div>
                 <p className="text-[11px] font-medium text-text-secondary mb-0.5">No active plan</p>
                 {trialDaysLeft !== null && trialDaysLeft > 0 && (
-                  <span className="inline-flex items-center gap-1 text-[10px] text-orange-600 bg-orange-100 dark:bg-orange-900/30 px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center gap-1 text-[10px] text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full">
                     <Clock size={10} aria-hidden="true" />
                     Trial: {trialDaysLeft}d left
                   </span>
@@ -222,7 +222,7 @@ function CreditsContent() {
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-green-500/10 border border-green-500/20">
                         <CheckCircle size={14} className="text-green-600" aria-hidden="true" />
-                        <span className="text-[11px] font-medium text-green-700 dark:text-green-400">
+                        <span className="text-[11px] font-medium text-green-700">
                           {subscription?.cancel_at_period_end ? `Active until ${periodEnd}` : 'Active — auto-renews monthly'}
                         </span>
                       </div>

@@ -3,7 +3,7 @@ import { requireAdmin, serverError } from '@/lib/auth';
 import { query } from '@/lib/postgres';
 import { 
   User, createUser, updateUser, deleteUser, 
-  createLicense, generateLicenseKey 
+  createLicense, generateLicenseKey, resetUserPassword
 } from '@/lib/db';
 import { hashPassword } from '@/lib/auth';
 
@@ -53,7 +53,8 @@ export async function POST(req: NextRequest) {
         full_name, 
         company_name, 
         phone_number, 
-        address
+        address,
+        logo
       );
 
       // Create a 365-day license for the new user
@@ -89,6 +90,15 @@ export async function POST(req: NextRequest) {
     if (action === 'delete') {
       if (!id) return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
       await deleteUser(id);
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'reset-password') {
+      if (!id || !password) {
+        return NextResponse.json({ error: 'User ID and new password are required' }, { status: 400 });
+      }
+      const passwordHash = await hashPassword(password);
+      await resetUserPassword(id, passwordHash);
       return NextResponse.json({ success: true });
     }
 

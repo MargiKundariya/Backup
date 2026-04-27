@@ -6,6 +6,7 @@ import { useEditorStore } from '@/lib/store';
 import { TextLayer } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Type, Trash2 } from 'lucide-react';
+import { toast } from '@/components/ui/Toast';
 
 const FONTS = [
   'Arial',
@@ -24,6 +25,7 @@ export function TextPanel() {
   const addTextLayer = useEditorStore((s) => s.addTextLayer);
   const updateTextLayer = useEditorStore((s) => s.updateTextLayer);
   const removeTextLayer = useEditorStore((s) => s.removeTextLayer);
+  const selectedDevice = useEditorStore((s) => s.selectedDevice);
 
   const [newText, setNewText] = useState('');
   const [font, setFont] = useState('Arial');
@@ -56,7 +58,7 @@ export function TextPanel() {
   };
 
   const handleSubmit = () => {
-    if (!activeZoneId || !newText.trim()) return;
+    if (!activeZoneId || !newText.trim() || !selectedDevice) return;
 
     if (editingLayerId !== null) {
       updateTextLayer(activeZoneId, editingLayerId, {
@@ -67,16 +69,30 @@ export function TextPanel() {
       });
       cancelEditing();
     } else {
+      // Calculate center of device for initial placement
+      const centerX = (selectedDevice.dimensions?.width || 1000) / 2;
+      const centerY = (selectedDevice.dimensions?.height || 1000) / 2;
+
       const layer: TextLayer = {
         id: uuidv4(),
         content: newText,
         fontFamily: font,
         fontSize,
         color,
-        transform: { x: 100, y: 100, scaleX: 1, scaleY: 1, rotation: 0 },
+        transform: { 
+          x: centerX - (newText.length * fontSize * 0.3), // Rough horizontal center adjustment
+          y: centerY - (fontSize / 2),
+          scaleX: 1, 
+          scaleY: 1, 
+          rotation: 0 
+        },
       };
       addTextLayer(activeZoneId, layer);
       setNewText('');
+      toast('Text added to mockup', 'success');
+      
+      // Auto-select for editing to show it's active
+      setEditingLayerId(layer.id);
     }
   };
 

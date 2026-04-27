@@ -83,7 +83,7 @@ export function CreditGateModal({ cost, balance, jobDescription, onConfirm, onCa
         {!canAfford && (
           <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 mb-4">
             <AlertTriangle size={14} className="text-red-500 flex-shrink-0 mt-0.5" aria-hidden="true" />
-            <p className="text-[11px] text-red-600 dark:text-red-400">
+            <p className="text-[11px] text-red-600">
               You need {cost - balance} more credit{cost - balance !== 1 ? 's' : ''} for this export.
             </p>
           </div>
@@ -93,7 +93,7 @@ export function CreditGateModal({ cost, balance, jobDescription, onConfirm, onCa
         {isLow && (
           <div className="flex items-start gap-2 p-3 rounded-xl bg-orange-500/10 border border-orange-500/20 mb-4">
             <AlertTriangle size={14} className="text-orange-500 flex-shrink-0 mt-0.5" aria-hidden="true" />
-            <p className="text-[11px] text-orange-600 dark:text-orange-400">
+            <p className="text-[11px] text-orange-600">
               Running low on credits. You&apos;ll have {newBalance} left after this export.
             </p>
           </div>

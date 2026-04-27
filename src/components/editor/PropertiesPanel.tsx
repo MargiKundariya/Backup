@@ -59,24 +59,71 @@ export function PropertiesPanel({ onCollapse }: PropertiesPanelProps) {
   };
 
   const alignToZone = (alignment: string) => {
-    if (!zone || !design?.designImage || !activeZoneId) return;
+    if (!zone || !design?.designImage || !activeZoneId || !selectedDevice) return;
     pushHistory('Align');
     const img = new Image();
     img.onload = () => {
-      const zb = zone.bounds;
       const t = design.transform;
       const sw = img.naturalWidth * t.scaleX;
       const sh = img.naturalHeight * t.scaleY;
       const updates: Record<string, number> = {};
-      if (alignment === 'center-h') updates.x = zb.x + (zb.width - sw) / 2;
-      if (alignment === 'center-v') updates.y = zb.y + (zb.height - sh) / 2;
-      if (alignment === 'left') updates.x = zb.x;
-      if (alignment === 'right') updates.x = zb.x + zb.width - sw;
-      if (alignment === 'top') updates.y = zb.y;
-      if (alignment === 'bottom') updates.y = zb.y + zb.height - sh;
+      
+      // Use device dimensions for alignment
+      if (alignment === 'center-h') updates.x = (selectedDevice.dimensions.width - sw) / 2;
+      if (alignment === 'center-v') updates.y = (selectedDevice.dimensions.height - sh) / 2;
+      if (alignment === 'left') updates.x = 0;
+      if (alignment === 'right') updates.x = selectedDevice.dimensions.width - sw;
+      if (alignment === 'top') updates.y = 0;
+      if (alignment === 'bottom') updates.y = selectedDevice.dimensions.height - sh;
+      
       updateDesignTransform(activeZoneId, updates);
     };
     img.src = design.designImage;
+  };
+
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Local states for responsive inputs
+  const [localX, setLocalX] = useState(0);
+  const [localY, setLocalY] = useState(0);
+  const [localScaleX, setLocalScaleX] = useState(1);
+  const [localScaleY, setLocalScaleY] = useState(1);
+  const [localRotation, setLocalRotation] = useState(0);
+  const [localOpacity, setLocalOpacity] = useState(1);
+
+  // Sync local state when transform or activeZoneId changes
+  useEffect(() => {
+    if (transform) {
+      setLocalX(Math.round(transform.x));
+      setLocalY(Math.round(transform.y));
+      setLocalScaleX(transform.scaleX);
+      setLocalScaleY(transform.scaleY);
+      setLocalRotation(transform.rotation);
+      setLocalOpacity(transform.opacity ?? 1);
+    }
+  }, [activeZoneId, transform?.x, transform?.y, transform?.scaleX, transform?.scaleY, transform?.rotation, transform?.opacity]);
+
+  const updateX = (val: number) => { setLocalX(val); updateDesignTransform(activeZoneId!, { x: val }); };
+  const updateY = (val: number) => { setLocalY(val); updateDesignTransform(activeZoneId!, { y: val }); };
+  const updateRotation = (val: number) => { setLocalRotation(val); updateDesignTransform(activeZoneId!, { rotation: val }); };
+  const updateOpacity = (val: number) => { setLocalOpacity(val); updateDesignTransform(activeZoneId!, { opacity: val }); };
+  const updateScaleX = (val: number) => {
+    setLocalScaleX(val);
+    if (scaleLocked) {
+      setLocalScaleY(val);
+      updateDesignTransform(activeZoneId!, { scaleX: val, scaleY: val });
+    } else {
+      updateDesignTransform(activeZoneId!, { scaleX: val });
+    }
+  };
+  const updateScaleY = (val: number) => {
+    setLocalScaleY(val);
+    if (scaleLocked) {
+      setLocalScaleX(val);
+      updateDesignTransform(activeZoneId!, { scaleX: val, scaleY: val });
+    } else {
+      updateDesignTransform(activeZoneId!, { scaleY: val });
+    }
   };
 
   const iconBtn = 'w-7 h-7 flex items-center justify-center rounded-lg text-text-muted hover:text-accent hover:bg-accent/8 transition-all duration-200';
@@ -111,13 +158,12 @@ export function PropertiesPanel({ onCollapse }: PropertiesPanelProps) {
         </div>
         <div className="flex items-center gap-1.5">
           <button
-            onClick={resetTransform}
-            aria-label="Reset all transforms"
-            title="Reset all transforms"
-            className="flex items-center gap-1 text-[10px] text-text-muted hover:text-accent transition-colors"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className={`text-[9px] font-bold px-2 py-1 rounded-md transition-all ${
+              showAdvanced ? 'bg-accent text-white' : 'bg-slate-100 text-text-muted'
+            }`}
           >
-            <RotateCcw size={10} aria-hidden="true" />
-            Reset
+            {showAdvanced ? 'ADVANCED' : 'SIMPLE'}
           </button>
           {onCollapse && (
             <button
@@ -137,6 +183,7 @@ export function PropertiesPanel({ onCollapse }: PropertiesPanelProps) {
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
 
+
         {/* Zone info */}
         {zone && (
           <div className="glass-card rounded-xl px-3 py-2 flex items-center justify-between">
@@ -146,60 +193,64 @@ export function PropertiesPanel({ onCollapse }: PropertiesPanelProps) {
         )}
 
         {/* Position */}
-        <div>
-          <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-2">Position</p>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label htmlFor="prop-x" className="text-[9px] font-medium text-text-muted mb-0.5 block">X</label>
-              <input id="prop-x" type="number" aria-label="X position" value={Math.round(transform.x)} onChange={(e) => updateDesignTransform(activeZoneId, { x: Number(e.target.value) })} className={inputClass} />
+        {showAdvanced && (
+          <div>
+            <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-2">Position</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label htmlFor="prop-x" className="text-[9px] font-medium text-text-muted mb-0.5 block">X</label>
+                <input id="prop-x" type="number" aria-label="X position" value={localX} onChange={(e) => updateX(Number(e.target.value))} className={inputClass} />
+              </div>
+              <div>
+                <label htmlFor="prop-y" className="text-[9px] font-medium text-text-muted mb-0.5 block">Y</label>
+                <input id="prop-y" type="number" aria-label="Y position" value={localY} onChange={(e) => updateY(Number(e.target.value))} className={inputClass} />
+              </div>
             </div>
-            <div>
-              <label htmlFor="prop-y" className="text-[9px] font-medium text-text-muted mb-0.5 block">Y</label>
-              <input id="prop-y" type="number" aria-label="Y position" value={Math.round(transform.y)} onChange={(e) => updateDesignTransform(activeZoneId, { y: Number(e.target.value) })} className={inputClass} />
-            </div>
+            <div className="glass-separator mt-4" />
           </div>
-        </div>
-
-        <div className="glass-separator" />
+        )}
 
         {/* Scale */}
         <div>
-          <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-2">Scale</p>
-          <div className="flex items-end gap-1.5">
-            <div className="flex-1">
-              <label className="text-[9px] font-medium text-text-muted mb-0.5 block">X</label>
-              <input
-                type="number" step={0.1} value={transform.scaleX.toFixed(2)}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  updateDesignTransform(activeZoneId, scaleLocked ? { scaleX: v, scaleY: v } : { scaleX: v });
-                }}
-                className={inputClass}
-              />
+          <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-2">Scale / Size</p>
+          {showAdvanced ? (
+            <div className="flex items-end gap-1.5">
+              <div className="flex-1">
+                <label className="text-[9px] font-medium text-text-muted mb-0.5 block">X</label>
+                <input
+                  type="number" step={0.1} value={localScaleX}
+                  onChange={(e) => updateScaleX(Number(e.target.value))}
+                  className={inputClass}
+                />
+              </div>
+              <button
+                onClick={() => setScaleLocked((v) => !v)}
+                aria-label={scaleLocked ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
+                aria-pressed={scaleLocked}
+                title={scaleLocked ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
+                className={`mb-0.5 w-6 h-6 flex items-center justify-center rounded-lg border transition-all duration-200 flex-shrink-0 ${
+                  scaleLocked ? 'bg-accent text-white border-accent shadow-sm' : 'bg-white/60 text-text-muted border-border/60 hover:border-accent hover:text-accent'
+                }`}
+              >
+                {scaleLocked ? <Lock size={9} aria-hidden="true" /> : <Unlock size={9} aria-hidden="true" />}
+              </button>
+              <div className="flex-1">
+                <label className="text-[9px] font-medium text-text-muted mb-0.5 block">Y</label>
+                <input
+                  type="number" step={0.1} value={localScaleY}
+                  onChange={(e) => updateScaleY(Number(e.target.value))}
+                  className={inputClass}
+                />
+              </div>
             </div>
-            <button
-              onClick={() => setScaleLocked((v) => !v)}
-              aria-label={scaleLocked ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
-              aria-pressed={scaleLocked}
-              title={scaleLocked ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
-              className={`mb-0.5 w-6 h-6 flex items-center justify-center rounded-lg border transition-all duration-200 flex-shrink-0 ${
-                scaleLocked ? 'bg-accent text-white border-accent shadow-sm' : 'bg-white/60 text-text-muted border-border/60 hover:border-accent hover:text-accent'
-              }`}
-            >
-              {scaleLocked ? <Lock size={9} aria-hidden="true" /> : <Unlock size={9} aria-hidden="true" />}
-            </button>
-            <div className="flex-1">
-              <label className="text-[9px] font-medium text-text-muted mb-0.5 block">Y</label>
-              <input
-                type="number" step={0.1} value={transform.scaleY.toFixed(2)}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  updateDesignTransform(activeZoneId, scaleLocked ? { scaleX: v, scaleY: v } : { scaleY: v });
-                }}
-                className={inputClass}
-              />
-            </div>
-          </div>
+          ) : (
+            <input 
+              type="range" min={0.1} max={5} step={0.01} 
+              value={localScaleX} 
+              onChange={(e) => updateScaleX(Number(e.target.value))} 
+              className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-accent"
+            />
+          )}
         </div>
 
         <div className="glass-separator" />
@@ -208,29 +259,34 @@ export function PropertiesPanel({ onCollapse }: PropertiesPanelProps) {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-2">Rotate</p>
-            <div className="flex items-center gap-1">
-              <input
-                type="number" value={Math.round(transform.rotation)} min={-180} max={180}
-                onChange={(e) => updateDesignTransform(activeZoneId, { rotation: Number(e.target.value) })}
-                className={inputClass}
-              />
-              <span className="text-[10px] text-text-muted">°</span>
-            </div>
-            <input type="range" min={-180} max={180} value={transform.rotation} onChange={(e) => updateDesignTransform(activeZoneId, { rotation: Number(e.target.value) })} className="w-full mt-1.5" />
+            {showAdvanced && (
+              <div className="flex items-center gap-1 mb-1.5">
+                <input
+                  type="number" value={Math.round(localRotation)} min={-180} max={180}
+                  onChange={(e) => updateRotation(Number(e.target.value))}
+                  className={inputClass}
+                />
+                <span className="text-[10px] text-text-muted">°</span>
+              </div>
+            )}
+            <input type="range" min={-180} max={180} value={localRotation} onChange={(e) => updateRotation(Number(e.target.value))} className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-accent" />
           </div>
           <div>
             <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-2">Opacity</p>
-            <div className="flex items-center gap-1">
-              <input
-                type="number" value={Math.round((transform.opacity ?? 1) * 100)} min={0} max={100}
-                onChange={(e) => updateDesignTransform(activeZoneId, { opacity: Number(e.target.value) / 100 })}
-                className={inputClass}
-              />
-              <span className="text-[10px] text-text-muted">%</span>
-            </div>
-            <input type="range" min={0} max={1} step={0.05} value={transform.opacity ?? 1} onChange={(e) => updateDesignTransform(activeZoneId, { opacity: parseFloat(e.target.value) })} className="w-full mt-1.5" />
+            {showAdvanced && (
+              <div className="flex items-center gap-1 mb-1.5">
+                <input
+                  type="number" value={Math.round(localOpacity * 100)} min={0} max={100}
+                  onChange={(e) => updateOpacity(Number(e.target.value) / 100)}
+                  className={inputClass}
+                />
+                <span className="text-[10px] text-text-muted">%</span>
+              </div>
+            )}
+            <input type="range" min={0} max={1} step={0.05} value={localOpacity} onChange={(e) => updateOpacity(parseFloat(e.target.value))} className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-accent" />
           </div>
         </div>
+
 
         <div className="glass-separator" />
 
@@ -286,143 +342,146 @@ export function PropertiesPanel({ onCollapse }: PropertiesPanelProps) {
           </div>
         </div>
 
-        <div className="glass-separator" />
-
-        {/* Presets */}
-        <div>
-          <button
-            onClick={() => setShowPresets((v) => !v)}
-            aria-expanded={showPresets}
-            aria-controls="presets-panel"
-            className="w-full flex items-center gap-2 text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1"
-          >
-            <Bookmark size={11} aria-hidden="true" />
-            <span className="flex-1 text-left">Presets</span>
-            <ChevronDown size={11} aria-hidden="true" className={`transition-transform duration-200 ${showPresets ? 'rotate-180' : ''}`} />
-          </button>
-          {showPresets && (
-            <div id="presets-panel" className="space-y-1.5">
-              {/* Save current */}
-              <div className="flex gap-1">
-                <input
-                  type="text"
-                  placeholder="Preset name..."
-                  value={presetName}
-                  onChange={(e) => setPresetName(e.target.value)}
-                  className="flex-1 px-2 py-1 text-[10px] rounded-md border border-border/60 bg-white/60 focus:outline-none focus:ring-1 focus:ring-accent/30"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && presetName.trim() && transform) {
-                      const p: TransformPreset = { id: Date.now().toString(), name: presetName.trim(), transform: { ...transform } };
-                      savePreset(p);
-                      setPresets(getSavedPresets());
-                      setPresetName('');
-                    }
-                  }}
-                />
-                <button
-                  onClick={() => {
-                    if (!presetName.trim() || !transform) return;
-                    const p: TransformPreset = { id: Date.now().toString(), name: presetName.trim(), transform: { ...transform } };
-                    savePreset(p);
-                    setPresets(getSavedPresets());
-                    setPresetName('');
-                  }}
-                  disabled={!presetName.trim()}
-                  aria-label="Save current position as preset"
-                  title="Save current position as preset"
-                  className="px-2 py-1 text-[10px] rounded-md bg-accent text-white disabled:opacity-30 hover:bg-accent-hover transition-all"
-                >
-                  <Save size={10} aria-hidden="true" />
-                </button>
-              </div>
-              {/* Preset list */}
-              {presets.length > 0 && (
-                <div className="glass-card rounded-lg p-1 space-y-0.5">
-                  {presets.map((p) => (
-                    <div key={p.id} className="flex items-center gap-1 group">
-                      <button
-                        onClick={() => {
-                          if (!activeZoneId || !p.transform) return;
-                          pushHistory('Apply preset');
-                          updateDesignTransform(activeZoneId, p.transform);
-                        }}
-                        title={`Apply: ${p.name}`}
-                        className="flex-1 text-left px-2 py-1 text-[10px] rounded-md hover:bg-accent/8 hover:text-accent transition-all truncate"
-                      >
-                        {p.name}
-                      </button>
-                      <button
-                        onClick={() => { deletePreset(p.id); setPresets(getSavedPresets()); }}
-                        aria-label={`Delete preset ${p.name}`}
-                        title="Delete preset"
-                        className="p-0.5 text-text-muted/40 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                      >
-                        <Trash2 size={9} aria-hidden="true" />
-                      </button>
+        {showAdvanced && (
+          <>
+            <div className="glass-separator" />
+            {/* Presets */}
+            <div>
+              <button
+                onClick={() => setShowPresets((v) => !v)}
+                aria-expanded={showPresets}
+                aria-controls="presets-panel"
+                className="w-full flex items-center gap-2 text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1"
+              >
+                <Bookmark size={11} aria-hidden="true" />
+                <span className="flex-1 text-left">Presets</span>
+                <ChevronDown size={11} aria-hidden="true" className={`transition-transform duration-200 ${showPresets ? 'rotate-180' : ''}`} />
+              </button>
+              {showPresets && (
+                <div id="presets-panel" className="space-y-1.5">
+                  {/* Save current */}
+                  <div className="flex gap-1">
+                    <input
+                      type="text"
+                      placeholder="Preset name..."
+                      value={presetName}
+                      onChange={(e) => setPresetName(e.target.value)}
+                      className="flex-1 px-2 py-1 text-[10px] rounded-md border border-border/60 bg-white/60 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && presetName.trim() && transform) {
+                          const p: TransformPreset = { id: Date.now().toString(), name: presetName.trim(), transform: { ...transform } };
+                          savePreset(p);
+                          setPresets(getSavedPresets());
+                          setPresetName('');
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        if (!presetName.trim() || !transform) return;
+                        const p: TransformPreset = { id: Date.now().toString(), name: presetName.trim(), transform: { ...transform } };
+                        savePreset(p);
+                        setPresets(getSavedPresets());
+                        setPresetName('');
+                      }}
+                      disabled={!presetName.trim()}
+                      aria-label="Save current position as preset"
+                      title="Save current position as preset"
+                      className="px-2 py-1 text-[10px] rounded-md bg-accent text-white disabled:opacity-30 hover:bg-accent-hover transition-all"
+                    >
+                      <Save size={10} aria-hidden="true" />
+                    </button>
+                  </div>
+                  {/* Preset list */}
+                  {presets.length > 0 && (
+                    <div className="glass-card rounded-lg p-1 space-y-0.5">
+                      {presets.map((p) => (
+                        <div key={p.id} className="flex items-center gap-1 group">
+                          <button
+                            onClick={() => {
+                              if (!activeZoneId || !p.transform) return;
+                              pushHistory('Apply preset');
+                              updateDesignTransform(activeZoneId, p.transform);
+                            }}
+                            title={`Apply: ${p.name}`}
+                            className="flex-1 text-left px-2 py-1 text-[10px] rounded-md hover:bg-accent/8 hover:text-accent transition-all truncate"
+                          >
+                            {p.name}
+                          </button>
+                          <button
+                            onClick={() => { deletePreset(p.id); setPresets(getSavedPresets()); }}
+                            aria-label={`Delete preset ${p.name}`}
+                            title="Delete preset"
+                            className="p-0.5 text-text-muted/40 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                          >
+                            <Trash2 size={9} aria-hidden="true" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
+                  {presets.length === 0 && (
+                    <p className="text-[9px] text-text-muted">Position your design, then save a preset</p>
+                  )}
                 </div>
               )}
-              {presets.length === 0 && (
-                <p className="text-[9px] text-text-muted">Position your design, then save a preset</p>
+            </div>
+
+            <div className="glass-separator" />
+
+            {/* History */}
+            <div>
+              <button
+                onClick={() => setShowHistory((v) => !v)}
+                aria-expanded={showHistory}
+                aria-controls="history-panel"
+                className="w-full flex items-center gap-2 text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1"
+              >
+                <History size={11} aria-hidden="true" />
+                <span className="flex-1 text-left">History ({history.length})</span>
+                <ChevronDown size={11} aria-hidden="true" className={`transition-transform duration-200 ${showHistory ? 'rotate-180' : ''}`} />
+              </button>
+              {showHistory && history.length > 0 && (
+                <div id="history-panel" className="glass-card rounded-xl p-1 max-h-40 overflow-y-auto space-y-0.5">
+                  {history.map((entry, i) => {
+                    const isCurrent = i === historyIndex;
+                    const isFuture = i > historyIndex;
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => {
+                          // Jump to this history state
+                          if (i < historyIndex) {
+                            for (let j = 0; j < historyIndex - i; j++) undo();
+                          } else if (i > historyIndex) {
+                            for (let j = 0; j < i - historyIndex; j++) redo();
+                          }
+                        }}
+                        title={`Jump to: ${entry.label}`}
+                        className={`w-full flex items-center gap-2 px-2 py-1 rounded-md text-[10px] transition-all duration-150 ${
+                          isCurrent
+                            ? 'bg-accent/10 text-accent font-semibold'
+                            : isFuture
+                              ? 'text-text-muted/40 hover:text-text-muted hover:bg-white/30'
+                              : 'text-text-secondary hover:bg-white/40'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isCurrent ? 'bg-accent' : isFuture ? 'bg-border' : 'bg-text-muted/30'}`} />
+                        <span className="truncate">{entry.label}</span>
+                        <span className="text-[8px] text-text-muted/50 ml-auto tabular-nums">
+                          {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {showHistory && history.length === 0 && (
+                <p className="text-[10px] text-text-muted px-1">No history yet</p>
               )}
             </div>
-          )}
-        </div>
-
-        <div className="glass-separator" />
-
-        {/* History */}
-        <div>
-          <button
-            onClick={() => setShowHistory((v) => !v)}
-            aria-expanded={showHistory}
-            aria-controls="history-panel"
-            className="w-full flex items-center gap-2 text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1"
-          >
-            <History size={11} aria-hidden="true" />
-            <span className="flex-1 text-left">History ({history.length})</span>
-            <ChevronDown size={11} aria-hidden="true" className={`transition-transform duration-200 ${showHistory ? 'rotate-180' : ''}`} />
-          </button>
-          {showHistory && history.length > 0 && (
-            <div id="history-panel" className="glass-card rounded-xl p-1 max-h-40 overflow-y-auto space-y-0.5">
-              {history.map((entry, i) => {
-                const isCurrent = i === historyIndex;
-                const isFuture = i > historyIndex;
-                return (
-                  <button
-                    key={i}
-                    onClick={() => {
-                      // Jump to this history state
-                      if (i < historyIndex) {
-                        for (let j = 0; j < historyIndex - i; j++) undo();
-                      } else if (i > historyIndex) {
-                        for (let j = 0; j < i - historyIndex; j++) redo();
-                      }
-                    }}
-                    title={`Jump to: ${entry.label}`}
-                    className={`w-full flex items-center gap-2 px-2 py-1 rounded-md text-[10px] transition-all duration-150 ${
-                      isCurrent
-                        ? 'bg-accent/10 text-accent font-semibold'
-                        : isFuture
-                          ? 'text-text-muted/40 hover:text-text-muted hover:bg-white/30'
-                          : 'text-text-secondary hover:bg-white/40'
-                    }`}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isCurrent ? 'bg-accent' : isFuture ? 'bg-border' : 'bg-text-muted/30'}`} />
-                    <span className="truncate">{entry.label}</span>
-                    <span className="text-[8px] text-text-muted/50 ml-auto tabular-nums">
-                      {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          {showHistory && history.length === 0 && (
-            <p className="text-[10px] text-text-muted px-1">No history yet</p>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </aside>
   );

@@ -5,9 +5,10 @@ import {
   Transform,
   ZoneDesign,
   ExportOptions,
+  SkinZone,
 } from '@/types';
 import { sanitizeTransform } from './safeImageLoader';
-import { calculateFit } from './imageFitting';
+import { calculateFit, FitMode } from './imageFitting';
 
 interface HistoryEntry {
   zoneDesigns: Record<string, ZoneDesign>;
@@ -149,37 +150,59 @@ const defaultExportOptions: ExportOptions = {
   includeBackground: true,
   filenamePattern: '{device}_{design}',
   resolutionPreset: 'auto',
-  customOutputSize: 2000,
+  customOutputSize: 3000,
   complianceBackground: 'scene',
   addWatermark: false,
 };
 
-/**
- * Compute the cover-scale transform for an image inside a zone.
- * Returns a Promise that resolves once the image has loaded.
- */
-function computeCoverTransform(
-  dataUrl: string,
-  zoneBounds: { width: number; height: number }
-): Promise<Transform> {
-  return new Promise((resolve, reject) => {
+const loadImage = (src: string): Promise<HTMLImageElement> =>
+  new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => {
-      const scale = Math.max(
-        zoneBounds.width / img.naturalWidth,
-        zoneBounds.height / img.naturalHeight
-      );
-      
-      const sw = img.naturalWidth * scale;
-      const sh = img.naturalHeight * scale;
-      const cx = (zoneBounds.width - sw) / 2;
-      const cy = (zoneBounds.height - sh) / 2;
-      
-      resolve({ x: cx, y: cy, scaleX: scale, scaleY: scale, rotation: 0 });
-    };
+    img.onload = () => resolve(img);
     img.onerror = reject;
-    img.src = dataUrl;
+    img.src = src;
   });
+
+/**
+ * Compute the fit transform for an image inside a zone, potentially relative to the whole device.
+ * Returns a Promise that resolves once the image has loaded.
+ * All transforms produced are DEVICE-RELATIVE.
+ */
+async function computeFitTransform(
+  dataUrl: string,
+  zone: SkinZone,
+  device: DeviceTemplate,
+  mode: FitMode = 'cover',
+  useDeviceDimensions = true
+): Promise<Transform> {
+  const [img, templateImg] = await Promise.all([
+    loadImage(dataUrl),
+    useDeviceDimensions ? loadImage(device.templatePath).catch(() => null) : Promise.resolve(null)
+  ]);
+
+  // Use actual template dimensions if available, fallback to device metadata, then to zone bounds
+  const targetW = templateImg?.naturalWidth || device.dimensions?.width || zone.bounds.width;
+  const targetH = templateImg?.naturalHeight || device.dimensions?.height || zone.bounds.height;
+  
+  // If we used the whole template, origin is (0,0). If we fell back to zone, origin is (x,y).
+  const originX = (templateImg || (useDeviceDimensions && device.dimensions?.width)) ? 0 : zone.bounds.x;
+  const originY = (templateImg || (useDeviceDimensions && device.dimensions?.height)) ? 0 : zone.bounds.y;
+
+  const fit = calculateFit(
+    targetW,
+    targetH,
+    img.naturalWidth,
+    img.naturalHeight,
+    mode
+  );
+
+  return {
+    x: originX + fit.offsetX,
+    y: originY + fit.offsetY,
+    scaleX: fit.scaleX,
+    scaleY: fit.scaleY,
+    rotation: 0,
+  };
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -402,38 +425,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // Resolve the device and zone
     const device = deviceOverride ?? get().selectedDevice;
     const zone = device?.zones.find((z) => z.id === targetZoneId);
-    if (!zone) return;
+    if (!zone || !device) return;
 
-    // Load image to get dimensions and compute "Cover" transform
-    const img = new Image();
-    img.onload = () => {
-      const fit = calculateFit(
-        zone.bounds.width,
-        zone.bounds.height,
-        img.naturalWidth,
-        img.naturalHeight,
-        'cover'
-      );
-      const transform = {
-        x: fit.offsetX,
-        y: fit.offsetY,
-        scaleX: fit.scaleX,
-        scaleY: fit.scaleY,
-        rotation: 0
-      };
-
-      set((s) => {
-        const design = s.zoneDesigns[targetZoneId];
-        if (design?.designImage !== targetDataUrl) return {};
-        return {
-          zoneDesigns: {
-            ...s.zoneDesigns,
-            [targetZoneId]: { ...design, transform },
-          },
-        };
-      });
-    };
-    img.src = targetDataUrl;
+    // Load image to get dimensions and compute "Cover" transform (device-relative)
+    computeFitTransform(targetDataUrl, zone, device, 'cover')
+      .then((transform) => {
+        set((s) => {
+          const design = s.zoneDesigns[targetZoneId];
+          if (design?.designImage !== targetDataUrl) return {};
+          return {
+            zoneDesigns: {
+              ...s.zoneDesigns,
+              [targetZoneId]: { ...design, transform },
+            },
+          };
+        });
+      })
+      .catch((err) => console.error('[store] Initial fit failed:', err));
   },
 
   updateDesignTransform: (zoneId, transform) => {
@@ -469,7 +477,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const targetZoneId = zoneId;
     const targetDataUrl = designUrl;
 
-    computeCoverTransform(targetDataUrl, zone.bounds)
+    // Use device dimensions for cover/contain to ensure full coverage
+    const useDeviceDimensions = mode === 'cover' || mode === 'contain';
+
+    computeFitTransform(
+      targetDataUrl,
+      zone,
+      device,
+      mode,
+      useDeviceDimensions
+    )
       .then((transform) => {
         set((s) => {
           const currentDesign = s.zoneDesigns[targetZoneId];
@@ -485,7 +502,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           };
         });
       })
-      .catch(() => {});
+      .catch((err) => console.error('[store] Fit design failed:', err));
   },
 
   removeDesign: (zoneId) => {
@@ -534,8 +551,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         },
       }));
 
-      // Then compute the correct cover transform
-      computeCoverTransform(sourceDataUrl, zone.bounds)
+      // Then compute the correct cover transform (device-wide)
+      computeFitTransform(sourceDataUrl, zone, selectedDevice, 'cover')
         .then((transform) => {
           set((s) => {
             const currentDesign = s.zoneDesigns[targetZoneId];
@@ -551,7 +568,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             };
           });
         })
-        .catch(() => {});
+        .catch((err) => console.error('[store] Apply all fit failed:', err));
     }
   },
 
@@ -751,7 +768,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setCurrentDesignId: (id) => set({ currentDesignId: id }),
   setCurrentProjectId: (id) => set({ currentProjectId: id }),
   setSaveState: (state) => set({ saveState: state }),
-  setIsLoadingDesign: (loading) => set({ isLoadingDesign: loading }),
+  setIsLoadingDesign: (loading) => set({ setIsLoadingDesign: loading }),
 
   // ── Sidebar navigation ──────────────────────────────────────────────────
   setActiveSidebarSection: (id) => set({ activeSidebarSection: id }),
